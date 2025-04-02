@@ -1,0 +1,15 @@
+/* Import all CSS files */
+@import 'framework.css';
+@import 'utilities.css';
+@import 'application_dark.css';
+@import 'application_utilities.css';
+@import 'application_utilities_dark.css';
+@import 'behaviors.css';
+@import 'errors.css';
+@import 'fonts.css';
+@import 'performance_bar.css';
+@import 'print.css';
+@import 'snippets.css';
+@import 'tailwind.css';
+@import 'test_environment.css';
+@import 'utilities.css';

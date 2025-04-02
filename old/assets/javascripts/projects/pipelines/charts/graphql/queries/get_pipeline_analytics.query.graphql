@@ -1,0 +1,31 @@
+query getPipelineAnalytics(
+  $fullPath: ID!
+  $fromTime: Time!
+  $toTime: Time!
+  $source: CiPipelineSources
+) {
+  project(fullPath: $fullPath) {
+    id
+    pipelineAnalytics(fromTime: $fromTime, toTime: $toTime, source: $source) {
+      aggregate {
+        count
+        successCount: count(status: SUCCESS)
+        failedCount: count(status: FAILED)
+        durationStatistics {
+          p50
+        }
+      }
+
+      timeSeries(period: DAY) {
+        label
+        successCount: count(status: SUCCESS)
+        failedCount: count(status: FAILED)
+        otherCount: count(status: OTHER)
+        durationStatistics {
+          p50
+          p95
+        }
+      }
+    }
+  }
+}
