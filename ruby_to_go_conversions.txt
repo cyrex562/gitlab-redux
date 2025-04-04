@@ -1,0 +1,48 @@
+# Ruby to Go Conversions
+
+This file tracks the Ruby modules that have been converted to Go in the gitlab-redux project.
+
+## Converted Files
+
+1. `app/controllers/concerns/integrations/gitlab_slack_application.rb` → `internal/handler/integrations/gitlab_slack_application.go`
+   - Converted the GitLab Slack application integration module
+
+2. `app/controllers/concerns/snippets/blobs_actions.rb` → `internal/handler/snippets/blobs_actions.go`
+   - Converted the Snippets Blobs actions module
+
+3. `app/controllers/concerns/registry/connection_errors_handler.rb` → `internal/handler/registry/connection_errors_handler.go`
+   - Converted the Registry connection errors handler module
+
+4. `app/controllers/concerns/onboarding/redirectable.rb` → `internal/handler/onboarding/redirectable.go`
+   - Converted the Onboarding redirectable module
+
+5. `app/controllers/concerns/snippets/send_blob.rb` → `internal/handler/snippets/send_blob.go`
+   - Converted the Snippets send blob module
+
+6. `app/controllers/concerns/spammable_actions/captcha_check/common.rb` → `internal/handler/spammable/captcha_check/common.go`
+   - Converted the SpammableActions CaptchaCheck Common module
+
+7. `app/controllers/concerns/spammable_actions/captcha_check/html_format_actions_support.rb` → `internal/handler/spammable/captcha_check/html_format.go`
+   - Converted the SpammableActions CaptchaCheck HtmlFormatActionsSupport module
+
+8. `app/controllers/concerns/spammable_actions/captcha_check/json_format_actions_support.rb` → `internal/handler/spammable/captcha_check/json_format.go`
+   - Converted the SpammableActions CaptchaCheck JsonFormatActionsSupport module
+
+9. `app/controllers/concerns/spammable_actions/captcha_check/rest_api_actions_support.rb` → `internal/handler/spammable/captcha_check/rest_api.go`
+   - Converted the SpammableActions CaptchaCheck RestApiActionsSupport module
+
+10. `app/controllers/concerns/spammable_actions/akismet_mark_as_spam_action.rb` → `internal/handler/spammable/akismet_mark_as_spam.go`
+    - Converted the SpammableActions AkismetMarkAsSpamAction module
+
+11. `app/controllers/concerns/web_hooks/hook_actions.rb` → `internal/handler/webhooks/hook_actions.go`
+    - Converted the WebHooks HookActions module
+
+12. `app/controllers/concerns/web_hooks/hook_execution_notice.rb` → `internal/handler/webhooks/hook_execution_notice.go`
+    - Converted the WebHooks HookExecutionNotice module
+
+## Notes
+
+- Each conversion maintains the original functionality while adapting to Go idioms and patterns
+- The Go implementations use dependency injection for better testability
+- Error handling follows Go conventions
+- The structure follows the original Ruby module organization where appropriate
