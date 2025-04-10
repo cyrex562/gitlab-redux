@@ -40,6 +40,252 @@ This file tracks the Ruby modules that have been converted to Go in the gitlab-r
 12. `app/controllers/concerns/web_hooks/hook_execution_notice.rb` → `internal/handler/webhooks/hook_execution_notice.go`
     - Converted the WebHooks HookExecutionNotice module
 
+13. `app/controllers/concerns/bizible_csp.rb` → `internal/handler/security/bizible_csp.go`
+    - Converted the BizibleCSP module
+
+14. `app/controllers/concerns/boards_actions.rb` → `internal/handler/boards/boards_actions.go`
+    - Converted the BoardsActions module
+
+15. `app/controllers/concerns/check_initial_setup.rb` → `internal/handler/setup/check_initial_setup.go`
+    - Converted the CheckInitialSetup module
+
+16. `app/controllers/concerns/check_rate_limit.rb` → `internal/handler/rate_limit/check_rate_limit.go`
+    - Converted the CheckRateLimit module
+
+17. `app/controllers/concerns/checks_collaboration.rb` → `internal/handler/collaboration/checks_collaboration.go`
+    - Converted the ChecksCollaboration module
+
+18. `app/controllers/concerns/confirm_email_warning.rb` → `internal/handler/auth/confirm_email_warning.go`
+    - Converted the ConfirmEmailWarning module
+
+19. `app/controllers/concerns/content_security_policy_patch.rb` → `internal/handler/security/content_security_policy_patch.go`
+    - Converted the ContentSecurityPolicyPatch module
+
+20. `app/controllers/concerns/continue_params.rb` → `internal/handler/redirect/continue_params.go`
+    - Converted the ContinueParams module
+
+21. `app/controllers/concerns/controller_with_cross_project_access_check.rb` → `internal/handler/access/cross_project_access_check.go`
+    - Converted the ControllerWithCrossProjectAccessCheck module
+
+22. `app/controllers/concerns/creates_commit.rb` → `internal/handler/commit/creates_commit.go`
+    - Converted the CreatesCommit module
+
+23. `app/controllers/concerns/cycle_analytics_params.rb` → `internal/handler/analytics/cycle_analytics_params.go`
+    - Converted the CycleAnalyticsParams module
+
+24. `app/controllers/concerns/default_branch_protection.rb` → `internal/handler/branch/default_branch_protection.go`
+    - Converted the DefaultBranchProtection module
+
+25. `app/controllers/concerns/diff_for_path.rb` → `internal/handler/diff/diff_for_path.go`
+    - Converted the DiffForPath module
+
+26. `app/controllers/concerns/enforces_admin_authentication.rb` → `internal/handler/auth/enforces_admin_authentication.go`
+    - Converted the EnforcesAdminAuthentication module
+
+27. `app/controllers/concerns/enforces_two_factor_authentication.rb` → `internal/handler/auth/enforces_two_factor_authentication.go`
+    - Converted the EnforcesTwoFactorAuthentication module
+
+28. `app/controllers/concerns/filters_events.rb` → `internal/handler/events/filters_events.go`
+    - Converted the FiltersEvents module
+
+29. `app/controllers/concerns/find_snippet.rb` → `internal/handler/snippets/find_snippet.go`
+    - Converted the FindSnippet module
+
+30. `app/controllers/concerns/floc_opt_out.rb` → `internal/handler/privacy/floc_opt_out.go`
+    - Converted the FlocOptOut module
+
+31. `app/controllers/concerns/gitlab_recaptcha.rb` → `internal/handler/security/gitlab_recaptcha.go`
+    - Converted the GitlabRecaptcha module
+
+32. `app/controllers/concerns/graceful_timeout_handling.rb` → `internal/handler/error/graceful_timeout_handling.go`
+    - Converted the GracefulTimeoutHandling module
+
+33. `app/controllers/concerns/group_tree.rb` → `internal/handler/groups/group_tree.go`
+    - Converted the GroupTree module
+
+34. `app/controllers/concerns/hotlink_interceptor.rb` → `internal/handler/security/hotlink_interceptor.go`
+    - Converted the HotlinkInterceptor module
+
+35. `app/controllers/concerns/impersonation.rb` → `internal/handler/auth/impersonation.go`
+    - Converted the Impersonation module
+
+36. `app/controllers/concerns/import_url_params.rb` → `internal/handler/import/import_url_params.go`
+    - Converted the ImportUrlParams module
+
+37. `app/controllers/concerns/initializes_current_user_mode.rb` → `internal/handler/auth/initializes_current_user_mode.go`
+    - Converted the InitializesCurrentUserMode module
+
+38. `app/controllers/concerns/internal_redirect.rb` → `internal/handler/redirect/internal_redirect.go`
+    - Converted the InternalRedirect module
+
+39. `app/controllers/concerns/invisible_captcha_on_signup.rb` → `internal/handler/security/invisible_captcha_on_signup.go`
+    - Converted the InvisibleCaptchaOnSignup module
+
+40. `app/controllers/concerns/issuable_actions.rb` → `internal/handler/issuable/issuable_actions.go`
+    - Converted the IssuableActions module
+
+41. `app/controllers/concerns/issuable_collections_action.rb` → `internal/handler/issuable/issuable_collections_action.go`
+    - Converted the IssuableCollectionsAction module
+
+42. `app/controllers/concerns/issuable_collections.rb` → `internal/handler/issuable/issuable_collections.go`
+    - Converted the IssuableCollections module
+
+43. `app/controllers/concerns/issuable_links.rb` → `internal/handler/issuable/issuable_links.go`
+    - Converted the IssuableLinks module
+
+44. `app/controllers/concerns/issues_calendar.rb` → `internal/handler/issuable/issues_calendar.go`
+    - Converted the IssuesCalendar module
+
+45. `app/controllers/concerns/kas_cookie.rb` → `internal/handler/security/kas_cookie.go`
+    - Converted the KasCookie module
+
+46. `app/controllers/concerns/known_sign_in.rb` → `internal/handler/security/known_sign_in.go`
+    - Converted the KnownSignIn module
+
+47. `app/controllers/concerns/labels_as_hash.rb` → `internal/handler/labels/labels_as_hash.go`
+    - Converted the LabelsAsHash module
+
+48. `app/controllers/concerns/lfs_request.rb` → `internal/handler/lfs/lfs_request.go`
+    - Converted the LfsRequest module
+
+49. `app/controllers/concerns/members_presentation.rb` → `internal/handler/members/members_presentation.go`
+    - Converted the MembersPresentation module
+
+50. `app/controllers/concerns/membership_actions.rb` → `internal/handler/members/membership_actions.go`
+    - Converted the MembershipActions module
+
+51. `app/controllers/concerns/milestone_actions.rb` → `internal/handler/milestone/milestone_actions.go`
+    - Converted the MilestoneActions module
+
+52. `app/controllers/concerns/notes_actions.rb` → `internal/handler/notes/notes_actions.go`
+    - Converted the NotesActions module
+
+53. `app/controllers/concerns/oauth_applications.rb` → `internal/handler/oauth/oauth_applications.go`
+    - Converted the OauthApplications module
+
+54. `app/controllers/concerns/one_trust_csp.rb` → `internal/handler/security/one_trust_csp.go`
+    - Converted the OneTrustCSP module
+
+55. `app/controllers/concerns/packages_access.rb` → `internal/handler/packages/packages_access.go`
+    - Converted the PackagesAccess module
+
+56. `app/controllers/concerns/page_limiter.rb` → `internal/handler/pagination/page_limiter.go`
+    - Converted the PageLimiter module
+
+57. `app/controllers/concerns/paginated_collection.rb` → `internal/handler/pagination/paginated_collection.go`
+    - Converted the PaginatedCollection module
+
+58. `app/controllers/concerns/params_backward_compatibility.rb` → `internal/handler/params/params_backward_compatibility.go`
+    - Converted the ParamsBackwardCompatibility module
+
+59. `app/controllers/concerns/parse_commit_date.rb` → `internal/handler/commit/parse_commit_date.go`
+    - Converted the ParseCommitDate module
+
+60. `app/controllers/concerns/preferred_language_switcher.rb` → `internal/handler/language/preferred_language_switcher.go`
+    - Converted the PreferredLanguageSwitcher module
+
+61. `app/controllers/concerns/preview_markdown.rb` → `internal/handler/markdown/preview_markdown.go`
+    - Converted the PreviewMarkdown module
+
+62. `app/controllers/concerns/product_analytics_tracking.rb` → `internal/handler/analytics/product_analytics_tracking.go`
+    - Converted the ProductAnalyticsTracking module
+
+63. `app/controllers/concerns/project_stats_refresh_conflicts_guard.rb` → `internal/handler/project/stats_refresh_conflicts_guard.go`
+    - Converted the ProjectStatsRefreshConflictsGuard module
+
+64. `app/controllers/concerns/project_unauthorized.rb` → `internal/handler/project/project_unauthorized.go`
+    - Converted the ProjectUnauthorized module
+
+65. `app/controllers/concerns/rapid_diffs_resource.rb` → `internal/handler/diff/rapid_diffs_resource.go`
+    - Converted the RapidDiffsResource module
+
+66. `app/controllers/concerns/record_user_last_activity.rb` → `internal/handler/user/record_user_last_activity.go`
+    - Converted the RecordUserLastActivity module
+
+67. `app/controllers/concerns/redirects_for_missing_path_on_tree.rb` → `internal/handler/tree/redirects_for_missing_path.go`
+    - Converted the RedirectsForMissingPathOnTree module
+
+68. `app/controllers/concerns/render_access_tokens.rb` → `internal/handler/token/render_access_tokens.go`
+    - Converted the RenderAccessTokens module
+
+69. `app/controllers/concerns/render_service_results.rb` → `internal/handler/service/render_service_results.go`
+    - Converted the RenderServiceResults module
+
+70. `app/controllers/concerns/renders_assignees.rb` → `internal/handler/assignees/renders_assignees.go`
+    - Converted the RendersAssignees module
+
+71. `app/controllers/concerns/renders_blob.rb` → `internal/handler/blob/renders_blob.go`
+    - Converted the RendersBlob module
+
+72. `app/controllers/concerns/renders_commits.rb` → `internal/handler/commit/renders_commits.go`
+    - Converted the RendersCommits module
+
+73. `app/controllers/concerns/renders_ldap_servers.rb` → `internal/handler/ldap/renders_ldap_servers.go`
+    - Converted the RendersLdapServers module
+
+74. `app/controllers/concerns/renders_member_access.rb` → `internal/handler/member/renders_member_access.go`
+    - Converted the RendersMemberAccess module
+
+75. `app/controllers/concerns/renders_notes.rb` → `internal/handler/notes/renders_notes.go`
+    - Converted the RendersNotes module
+
+76. `app/controllers/concerns/renders_projects_list.rb` → `internal/handler/project/renders_projects_list.go`
+    - Converted the RendersProjectsList module
+
+77. `app/controllers/concerns/repository_settings_redirect.rb` → `internal/handler/repository/repository_settings_redirect.go`
+    - Converted the RepositorySettingsRedirect module
+
+78. `app/controllers/concerns/request_payload_logger.rb` → `internal/handler/logging/request_payload_logger.go`
+    - Converted the RequestPayloadLogger module
+
+79. `app/controllers/concerns/requires_allowlisted_monitoring_client.rb` → `internal/handler/monitoring/requires_allowlisted_monitoring_client.go`
+    - Converted the RequiresAllowlistedMonitoringClient module
+
+80. `app/controllers/concerns/routable_actions.rb` → `internal/handler/routing/routable_actions.go`
+    - Converted the RoutableActions module
+
+81. `app/controllers/concerns/runner_setup_scripts.rb` → `internal/handler/ci/runner_setup_scripts.go`
+    - Converted the RunnerSetupScripts module
+
+82. `app/controllers/concerns/search_rate_limitable.rb` → `internal/handler/rate_limit/search_rate_limitable.go`
+    - Converted the SearchRateLimitable module
+
+83. `app/controllers/concerns/security_and_compliance_permissions.rb` → `internal/handler/security/security_and_compliance_permissions.go`
+    - Converted the SecurityAndCompliancePermissions module
+
+84. `app/controllers/concerns/send_file_upload.rb` → `internal/handler/blob/send_file_upload.go`
+    - Converted the SendFileUpload module
+
+85. `app/controllers/concerns/sends_blob.rb` → `internal/handler/blob/sends_blob.go`
+    - Converted the SendsBlob module
+
+86. `app/controllers/concerns/sessionless_authentication.rb` → `internal/handler/auth/sessionless_authentication.go`
+    - Converted the SessionlessAuthentication module
+
+87. `app/controllers/concerns/skips_already_signed_in_message.rb` → `internal/handler/auth/skips_already_signed_in_message.go`
+    - Converted the SkipsAlreadySignedInMessage module
+
+88. `app/controllers/concerns/snippet_authorizations.rb` → `internal/handler/snippets/snippet_authorizations.go`
+    - Converted the SnippetAuthorizations module
+
+89. `app/controllers/concerns/snippets_actions.rb` → `internal/handler/snippets/snippets_actions.go`
+    - Converted the SnippetsActions module
+
+90. `app/controllers/concerns/snippets_sort.rb` → `internal/handler/snippets/snippets_sort.go`
+    - Converted the SnippetsSort module
+
+91. `app/controllers/concerns/sorting_preference.rb` → `internal/handler/sorting/sorting_preference.go`
+    - Converted the SortingPreference module
+
+92. `app/controllers/concerns/sourcegraph_decorator.rb` → `internal/handler/sourcegraph/sourcegraph_decorator.go`
+    - Converted the SourcegraphDecorator module
+
+93. `app/controllers/concerns/static_object_external_storage_csp.rb` → `internal/handler/storage/static_object_external_storage_csp.go`
+    - Converted the StaticObjectExternalStorageCSP module
+
+94. `app/controllers/concerns/static_object_external_storage.rb` → `internal/handler/storage/static_object_external_storage.go`
+    - Converted the StaticObjectExternalStorage module
+
 ## Notes
 
 - Each conversion maintains the original functionality while adapting to Go idioms and patterns
