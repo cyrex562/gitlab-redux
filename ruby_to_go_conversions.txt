@@ -286,6 +286,24 @@ This file tracks the Ruby modules that have been converted to Go in the gitlab-r
 94. `app/controllers/concerns/static_object_external_storage.rb` → `internal/handler/storage/static_object_external_storage.go`
     - Converted the StaticObjectExternalStorage module
 
+95. `app/controllers/concerns/stream_diffs.rb` → `internal/handler/diff/stream_diffs.go`
+    - Converted the StreamDiffs module
+
+96. `app/controllers/concerns/strong_pagination_params.rb` → `internal/handler/pagination/pagination_params.go`
+    - Converted the StrongPaginationParams module
+
+97. `app/controllers/dashboard/labels_controller.rb` → `internal/handler/dashboard/labels_controller.go`
+    - Converted the Dashboard LabelsController
+
+98. `app/controllers/dashboard/milestones_controller.rb` → `internal/handler/dashboard/milestones_controller.go`
+    - Converted the Dashboard MilestonesController
+
+99. `app/controllers/dashboard/projects_controller.rb` → `internal/handler/dashboard/projects_controller.go`
+    - Converted the Dashboard ProjectsController
+
+100. `app/controllers/dashboard/snippets_controller.rb` → `internal/handler/dashboard/snippets_controller.go`
+    - Converted the Dashboard SnippetsController
+
 ## Notes
 
 - Each conversion maintains the original functionality while adapting to Go idioms and patterns

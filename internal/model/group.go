@@ -6,23 +6,35 @@ import (
 
 // Group represents a GitLab group
 type Group struct {
-	ID                          uint      `gorm:"primarykey" json:"id"`
-	CreatedAt                   time.Time `json:"created_at"`
-	UpdatedAt                   time.Time `json:"updated_at"`
-	Name                        string    `json:"name"`
-	Path                        string    `json:"path"`
-	Description                 string    `json:"description"`
-	VisibilityLevel            int       `json:"visibility_level"`
-	LFSEnabled                 bool      `json:"lfs_enabled"`
-	RequestAccessEnabled       bool      `json:"request_access_enabled"`
-	RunnerRegistrationEnabled  bool      `json:"runner_registration_enabled"`
-	RequireTwoFactorAuth       bool      `json:"require_two_factor_authentication"`
-	TwoFactorGracePeriod       int       `json:"two_factor_grace_period"`
-	EnabledGitAccessProtocol   string    `json:"enabled_git_access_protocol"`
-	ProjectCreationLevel       int       `json:"project_creation_level"`
-	SubgroupCreationLevel      int       `json:"subgroup_creation_level"`
-	OrganizationID            uint      `json:"organization_id"`
-	AdminNote                 *AdminNote `json:"admin_note,omitempty" gorm:"foreignKey:GroupID"`
+	ID                int64     `json:"id"`
+	Name              string    `json:"name"`
+	Path              string    `json:"path"`
+	Description       string    `json:"description"`
+	Visibility        string    `json:"visibility"`
+	LFSEnabled        bool      `json:"lfs_enabled"`
+	AvatarURL         string    `json:"avatar_url"`
+	WebURL            string    `json:"web_url"`
+	RequestAccessEnabled bool   `json:"request_access_enabled"`
+	FullName          string    `json:"full_name"`
+	FullPath          string    `json:"full_path"`
+	ParentID          int64     `json:"parent_id"`
+	CreatedAt         time.Time `json:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
+	ProjectsCount     int       `json:"projects_count"`
+	MembersCount      int       `json:"members_count"`
+	SharedWithGroups  []*Group  `json:"shared_with_groups"`
+	SharedProjects    []*Project `json:"shared_projects"`
+	Projects          []*Project `json:"projects"`
+}
+
+// RenderedGroup represents a rendered group for display
+type RenderedGroup struct {
+	*Group
+	PathWithNamespace string `json:"path_with_namespace"`
+	FullPath          string `json:"full_path"`
+	HasParent         bool   `json:"has_parent"`
+	ParentName        string `json:"parent_name"`
+	ParentPath        string `json:"parent_path"`
 }
 
 // GroupDetails represents a group with its associated data

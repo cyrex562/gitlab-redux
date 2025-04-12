@@ -4,19 +4,39 @@ import "time"
 
 // User represents a GitLab user
 type User struct {
-	ID                    int64     `json:"id"`
-	Username             string    `json:"username"`
-	Email                string    `json:"email"`
-	Name                 string    `json:"name"`
-	State                string    `json:"state"`
-	Admin                bool      `json:"admin"`
-	CreatedAt            time.Time `json:"created_at"`
-	UpdatedAt            time.Time `json:"updated_at"`
-	LastSignInAt         time.Time `json:"last_sign_in_at"`
-	LastActivityOn       time.Time `json:"last_activity_on"`
-	TwoFactorEnabled     bool      `json:"two_factor_enabled"`
-	TrustedWithSpamCheck bool      `json:"trusted_with_spam_check"`
-	// Add other necessary fields
+	ID                int64     `json:"id"`
+	Name              string    `json:"name"`
+	Username          string    `json:"username"`
+	Email             string    `json:"email"`
+	State             string    `json:"state"`
+	CreatedAt         time.Time `json:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
+	Bio               string    `json:"bio"`
+	Location          string    `json:"location"`
+	PublicEmail       string    `json:"public_email"`
+	Skype             string    `json:"skype"`
+	Linkedin          string    `json:"linkedin"`
+	Twitter           string    `json:"twitter"`
+	WebsiteURL        string    `json:"website_url"`
+	Organization      string    `json:"organization"`
+	JobTitle          string    `json:"job_title"`
+	WorkInfo          string    `json:"work_info"`
+	TwoFactorEnabled  bool      `json:"two_factor_enabled"`
+	External          bool      `json:"external"`
+	PrivateProfile    bool      `json:"private_profile"`
+	CommitEmail       string    `json:"commit_email"`
+	ThemeID           int       `json:"theme_id"`
+	ColorSchemeID     int       `json:"color_scheme_id"`
+	ProjectsLimit     int       `json:"projects_limit"`
+	CurrentSignInAt   time.Time `json:"current_sign_in_at"`
+	LastSignInAt      time.Time `json:"last_sign_in_at"`
+	CurrentSignInIP   string    `json:"current_sign_in_ip"`
+	LastSignInIP      string    `json:"last_sign_in_ip"`
+	Admin             bool      `json:"admin"`
+	CanCreateGroup    bool      `json:"can_create_group"`
+	CanCreateProject  bool      `json:"can_create_project"`
+	TwoFactorGracePeriod int    `json:"two_factor_grace_period"`
+	AvatarURL         string    `json:"avatar_url"`
 }
 
 // UserParams represents the parameters for creating or updating a user
@@ -69,4 +89,15 @@ func (u *User) IsLocked() bool {
 // IsTrustedWithSpamCheck checks if the user is trusted with spam checks
 func (u *User) IsTrustedWithSpamCheck() bool {
 	return u.TrustedWithSpamCheck
+}
+
+// RenderedUser represents a rendered user for display
+type RenderedUser struct {
+	*User
+	Path              string `json:"path"`
+	FullPath          string `json:"full_path"`
+	Status            string `json:"status"`
+	StatusEmoji       string `json:"status_emoji"`
+	StatusMessage     string `json:"status_message"`
+	StatusMessageHtml string `json:"status_message_html"`
 }
