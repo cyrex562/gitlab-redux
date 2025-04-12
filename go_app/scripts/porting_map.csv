@@ -1,0 +1,5 @@
+source_file,target_file
+orig_app/app/controllers/groups/dependency_proxies_controller.rb,go_app/internal/server/groups/dependency_proxies.go 
+orig_app/app/controllers/groups/dependency_proxy_auth_controller.rb,go_app/internal/server/groups/dependency_proxy_auth.go 
+orig_app/app/controllers/groups/dependency_proxy_for_containers_controller.rb,go_app/internal/server/groups/dependency_proxy_containers.go 
+orig_app/app/controllers/groups/deploy_tokens_controller.rb,go_app/internal/server/groups/deploy_tokens.go 
