@@ -1,0 +1,8 @@
+orig_app/app/controllers/groups/dependency_proxies_controller.rb -> go_app/internal/handlers/groups/dependency_proxies.go
+orig_app/app/controllers/groups/dependency_proxy_auth_controller.rb -> go_app/internal/handlers/groups/dependency_proxy_auth.go
+orig_app/app/controllers/groups/dependency_proxy_for_containers_controller.rb -> go_app/internal/handlers/groups/dependency_proxy_for_containers.go
+orig_app/app/controllers/groups/deploy_tokens_controller.rb -> go_app/internal/handlers/groups/deploy_tokens.go
+orig_app/app/controllers/groups/group_links_controller.rb -> go_app/internal/handlers/groups/group_links.go
+orig_app/app/controllers/groups/group_members_controller.rb -> go_app/internal/handlers/groups/group_members.go
+orig_app/app/controllers/groups/imports_controller.rb -> go_app/internal/handlers/groups/imports.go
+orig_app/app/controllers/groups/infrastructure_registry_controller.rb -> go_app/internal/handlers/groups/infrastructure_registry.go 

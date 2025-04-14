@@ -1,4 +1,4 @@
-module gitlab.com/gitlab-org/gitlab
+module gitlab.com/gitlab-org/gitlab/go_app
 
 go 1.23.2
 

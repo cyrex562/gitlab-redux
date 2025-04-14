@@ -1,0 +1,16 @@
+{{ define "groups/usage_quotas/root" }}
+<div class="usage-quotas-container">
+  <h1>Usage Quotas for {{ .group.Name }}</h1>
+  
+  <div class="seat-count-data">
+    {{ if .seat_count_data }}
+      <!-- Seat count data will be rendered here -->
+      <p>Seat count data is available.</p>
+    {{ else }}
+      <p>No seat count data is available.</p>
+    {{ end }}
+  </div>
+  
+  <!-- Additional usage quotas information will be added here -->
+</div>
+{{ end }} 

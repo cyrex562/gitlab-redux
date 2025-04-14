@@ -1,0 +1,49 @@
+{{define "groups/import/gitlab/projects/new"}}
+{{template "layouts/application" .}}
+
+{{define "content"}}
+<div class="container">
+  <div class="row">
+    <div class="col-md-8 offset-md-2">
+      <div class="card">
+        <div class="card-header">
+          <h2>Import GitLab Project</h2>
+        </div>
+        <div class="card-body">
+          <form action="/groups/import/gitlab/projects" method="POST" enctype="multipart/form-data">
+            <div class="form-group">
+              <label for="name">Project Name</label>
+              <input type="text" class="form-control" id="name" name="name" required>
+            </div>
+
+            <div class="form-group">
+              <label for="path">Project Path</label>
+              <input type="text" class="form-control" id="path" name="path" required>
+              <small class="form-text text-muted">
+                The path will be: {{.Namespace.Path}}/<span id="path-preview"></span>
+              </small>
+            </div>
+
+            <div class="form-group">
+              <label for="file">Project Archive</label>
+              <input type="file" class="form-control-file" id="file" name="file" accept=".zip" required>
+              <small class="form-text text-muted">
+                Upload a ZIP file containing your GitLab project export.
+              </small>
+            </div>
+
+            <button type="submit" class="btn btn-primary">Import Project</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+document.getElementById('path').addEventListener('input', function(e) {
+  document.getElementById('path-preview').textContent = e.target.value;
+});
+</script>
+{{end}}
+{{end}} 

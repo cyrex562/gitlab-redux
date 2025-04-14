@@ -1,34 +1,88 @@
 package models
 
 import (
+	"io"
 	"mime/multipart"
+	"os"
+	"path/filepath"
 )
 
 const (
 	DistributionAPIVersion = "registry/2.0"
-	BlobMaxFileSize       = 5 * 1024 * 1024 * 1024 // 5GB
-	ManifestMaxFileSize   = 10 * 1024 * 1024       // 10MB
+	MaxBlobFileSize        = 500 * 1024 * 1024 // 500MB
+	MaxManifestFileSize    = 10 * 1024 * 1024  // 10MB
 )
 
-// DependencyProxyBlob represents a cached container blob
-type DependencyProxyBlob struct {
-	ID        int64
-	GroupID   int64
-	FileName  string
-	Size      int64
-	File      *multipart.File
+// AcceptedManifestTypes are the accepted manifest content types
+var AcceptedManifestTypes = []string{
+	"application/vnd.docker.distribution.manifest.v1+json",
+	"application/vnd.docker.distribution.manifest.v2+json",
+	"application/vnd.oci.image.manifest.v1+json",
 }
 
-// DependencyProxyManifest represents a cached container manifest
+// DependencyProxySetting represents the dependency proxy settings for a group
+type DependencyProxySetting struct {
+	Enabled bool
+}
+
+// DependencyProxyBlob represents a dependency proxy blob
+type DependencyProxyBlob struct {
+	FileName string
+	Size     int64
+	File     io.Reader
+}
+
+// SaveFile saves the blob file
+func (b *DependencyProxyBlob) SaveFile(file io.Reader) error {
+	// TODO: Implement file saving logic
+	return nil
+}
+
+// DependencyProxyManifest represents a dependency proxy manifest
 type DependencyProxyManifest struct {
-	ID          int64
-	GroupID     int64
 	FileName    string
-	Size        int64
 	ContentType string
 	Digest      string
-	File        *multipart.File
-	Active      bool
+	Size        int64
+	File        io.Reader
+}
+
+// SaveFile saves the manifest file
+func (m *DependencyProxyManifest) SaveFile(file io.Reader) error {
+	// TODO: Implement file saving logic
+	return nil
+}
+
+// Update updates the manifest
+func (m *DependencyProxyManifest) Update(newManifest *DependencyProxyManifest) error {
+	// TODO: Implement manifest update logic
+	return nil
+}
+
+// Group methods for dependency proxy
+
+// FindDependencyProxyBlobByFileName finds a dependency proxy blob by file name
+func (g *Group) FindDependencyProxyBlobByFileName(fileName string) (*DependencyProxyBlob, error) {
+	// TODO: Implement blob finding logic
+	return nil, nil
+}
+
+// CreateDependencyProxyBlob creates a new dependency proxy blob
+func (g *Group) CreateDependencyProxyBlob(blob *DependencyProxyBlob) error {
+	// TODO: Implement blob creation logic
+	return nil
+}
+
+// FindActiveDependencyProxyManifestByFileName finds an active dependency proxy manifest by file name
+func (g *Group) FindActiveDependencyProxyManifestByFileName(fileName string) (*DependencyProxyManifest, error) {
+	// TODO: Implement manifest finding logic
+	return nil, nil
+}
+
+// CreateDependencyProxyManifest creates a new dependency proxy manifest
+func (g *Group) CreateDependencyProxyManifest(manifest *DependencyProxyManifest) error {
+	// TODO: Implement manifest creation logic
+	return nil
 }
 
 // Registry provides URLs for the container registry
