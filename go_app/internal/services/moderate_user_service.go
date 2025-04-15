@@ -3,7 +3,7 @@ package services
 import (
 	"errors"
 
-	"gitlab.com/gitlab-org/gitlab-redux/internal/models"
+	"github.com/cyrex562/gitlab-redux/internal/models"
 )
 
 // ModerateUserService handles user moderation based on abuse reports

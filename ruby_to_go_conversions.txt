@@ -5,4 +5,7 @@ orig_app/app/controllers/groups/deploy_tokens_controller.rb -> go_app/internal/h
 orig_app/app/controllers/groups/group_links_controller.rb -> go_app/internal/handlers/groups/group_links.go
 orig_app/app/controllers/groups/group_members_controller.rb -> go_app/internal/handlers/groups/group_members.go
 orig_app/app/controllers/groups/imports_controller.rb -> go_app/internal/handlers/groups/imports.go
-orig_app/app/controllers/groups/infrastructure_registry_controller.rb -> go_app/internal/handlers/groups/infrastructure_registry.go 
+orig_app/app/controllers/groups/infrastructure_registry_controller.rb -> go_app/internal/handlers/groups/infrastructure_registry.go
+orig_app/app/controllers/oauth/applications_controller.rb -> app/handlers/oauth_applications_handler.go
+orig_app/app/controllers/oauth/authorizations_controller.rb -> app/handlers/oauth_authorizations_handler.go
+orig_app/app/controllers/oauth/authorized_applications_controller.rb -> app/handlers/oauth_authorized_applications_handler.go 

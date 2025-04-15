@@ -3,7 +3,7 @@ package groups
 import (
 	"net/http"
 
-	"gitlab.com/gitlab-org/gitlab-redux/go_app/internal/middleware"
+	"github.com/cyrex562/gitlab-redux/internal/middleware"
 )
 
 // PackagesHandler handles group package operations

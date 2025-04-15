@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"gitlab.com/gitlab-org/gitlab/internal/websocket/channel"
-	"gitlab.com/gitlab-org/gitlab/internal/websocket/logging"
+	"github.com/cyrex562/gitlab-redux/internal/websocket/channel"
+	"github.com/cyrex562/gitlab-redux/internal/websocket/logging"
 )
 
 // NewGraphQLChannel creates a new GraphQLChannel instance

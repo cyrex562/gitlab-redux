@@ -3,7 +3,7 @@ package logging
 import (
 	"net/http"
 
-	"gitlab.com/gitlab-org/gitlab/internal/websocket/connection"
+	"github.com/cyrex562/gitlab-redux/internal/websocket/connection"
 )
 
 // LogKey represents the correlation ID key in logs

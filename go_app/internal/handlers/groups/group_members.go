@@ -4,11 +4,11 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"gitlab.com/gitlab-org/gitlab-redux/go_app/internal/middleware"
-	"gitlab.com/gitlab-org/gitlab-redux/go_app/internal/models"
-	"gitlab.com/gitlab-org/gitlab-redux/go_app/internal/services/access_requests"
-	"gitlab.com/gitlab-org/gitlab-redux/go_app/internal/services/group_members"
-	"gitlab.com/gitlab-org/gitlab-redux/go_app/internal/services/imports"
+	"github.com/cyrex562/gitlab-redux/internal/middleware"
+	"github.com/cyrex562/gitlab-redux/internal/models"
+	"github.com/cyrex562/gitlab-redux/internal/services/access_requests"
+	"github.com/cyrex562/gitlab-redux/internal/services/group_members"
+	"github.com/cyrex562/gitlab-redux/internal/services/imports"
 )
 
 const (

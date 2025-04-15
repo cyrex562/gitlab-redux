@@ -1,7 +1,7 @@
 package deploy_tokens
 
 import (
-	"gitlab.com/gitlab-org/gitlab-redux/go_app/internal/models"
+	"github.com/cyrex562/gitlab-redux/internal/models"
 )
 
 // RevokeService handles revoking deploy tokens

@@ -1,7 +1,7 @@
 package group_links
 
 import (
-	"gitlab.com/gitlab-org/gitlab-redux/go_app/internal/models"
+	"github.com/cyrex562/gitlab-redux/internal/models"
 )
 
 // DestroyService handles destroying group links

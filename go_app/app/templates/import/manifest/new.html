@@ -1,0 +1,46 @@
+{{define "import/manifest/new"}}
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Import Manifest - GitLab</title>
+    <link rel="stylesheet" href="/assets/css/application.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Import Manifest</h1>
+
+        {{if .errors}}
+        <div class="alert alert-danger">
+            <ul>
+                {{range .errors}}
+                <li>{{.}}</li>
+                {{end}}
+            </ul>
+        </div>
+        {{end}}
+
+        <form action="/import/manifest/upload" method="post" enctype="multipart/form-data">
+            <div class="form-group">
+                <label for="group_id">Group</label>
+                <select name="group_id" id="group_id" class="form-control" required>
+                    <option value="">Select a group</option>
+                    {{range .groups}}
+                    <option value="{{.ID}}">{{.Name}}</option>
+                    {{end}}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="manifest">Manifest File</label>
+                <input type="file" name="manifest" id="manifest" class="form-control" required>
+                <small class="form-text text-muted">Maximum file size: 1MB</small>
+            </div>
+
+            <button type="submit" class="btn btn-primary">Upload Manifest</button>
+        </form>
+    </div>
+
+    <script src="/assets/js/application.js"></script>
+</body>
+</html>
+{{end}} 

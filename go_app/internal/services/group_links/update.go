@@ -3,7 +3,7 @@ package group_links
 import (
 	"time"
 
-	"gitlab.com/gitlab-org/gitlab-redux/go_app/internal/models"
+	"github.com/cyrex562/gitlab-redux/internal/models"
 )
 
 // UpdateService handles updating group links

@@ -3,9 +3,9 @@ package groups
 import (
 	"net/http"
 
-	"gitlab.com/gitlab-org/gitlab/internal/middleware"
-	"gitlab.com/gitlab-org/gitlab/internal/models"
-	"gitlab.com/gitlab-org/gitlab/internal/services"
+	"github.com/cyrex562/gitlab-redux/internal/middleware"
+	"github.com/cyrex562/gitlab-redux/internal/models"
+	"github.com/cyrex562/gitlab-redux/internal/services"
 )
 
 // DeployTokensController handles group deploy token operations

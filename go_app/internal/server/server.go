@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/cyrex562/gitlab-redux/internal/config"
+	"github.com/cyrex562/gitlab-redux/internal/websocket"
 	"github.com/gin-gonic/gin"
-	"gitlab.com/gitlab-org/gitlab/internal/config"
-	"gitlab.com/gitlab-org/gitlab/internal/websocket"
+	"gitlab.com/gitlab-org/gitlab-redux/app/handlers"
+	"gitlab.com/gitlab-org/gitlab-redux/app/routes"
 )
 
 type Server struct {
@@ -56,6 +58,10 @@ func (s *Server) setupRoutes() {
 			})
 		})
 	}
+
+	// Register OAuth routes
+	baseHandler := handlers.NewBaseHandler()
+	routes.RegisterOAuthRoutes(s.router, baseHandler)
 
 	// Serve index.html for the root path
 	s.router.GET("/", func(c *gin.Context) {

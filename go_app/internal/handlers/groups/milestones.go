@@ -7,9 +7,9 @@ import (
 	"strconv"
 	"time"
 
-	"gitlab.com/gitlab-org/gitlab-redux/go_app/internal/middleware"
-	"gitlab.com/gitlab-org/gitlab-redux/go_app/internal/models"
-	"gitlab.com/gitlab-org/gitlab-redux/go_app/internal/services"
+	"github.com/cyrex562/gitlab-redux/internal/middleware"
+	"github.com/cyrex562/gitlab-redux/internal/models"
+	"github.com/cyrex562/gitlab-redux/internal/services"
 )
 
 // MilestonesHandler handles group milestone operations

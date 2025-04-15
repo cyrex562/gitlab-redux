@@ -1,7 +1,7 @@
 package access_requests
 
 import (
-	"gitlab.com/gitlab-org/gitlab-redux/go_app/internal/models"
+	"github.com/cyrex562/gitlab-redux/internal/models"
 )
 
 // Finder handles finding access requests

@@ -3,9 +3,9 @@ package websocket
 import (
 	"net/http"
 
+	"github.com/cyrex562/gitlab-redux/internal/websocket/connection"
+	"github.com/cyrex562/gitlab-redux/internal/websocket/logging"
 	"github.com/gorilla/websocket"
-	"gitlab.com/gitlab-org/gitlab/internal/websocket/connection"
-	"gitlab.com/gitlab-org/gitlab/internal/websocket/logging"
 )
 
 var upgrader = websocket.Upgrader{

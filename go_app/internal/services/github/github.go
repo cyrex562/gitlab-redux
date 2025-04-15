@@ -3,7 +3,7 @@ package github
 import (
 	"context"
 
-	"gitlab.com/gitlab-org/gitlab/go_app/internal/models"
+	"github.com/cyrex562/gitlab-redux/internal/models"
 )
 
 // Service provides functionality for GitHub imports

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"gitlab.com/gitlab-org/gitlab-redux/go_app/internal/middleware"
+	"github.com/cyrex562/gitlab-redux/internal/middleware"
 )
 
 // ImportsHandler handles group import operations

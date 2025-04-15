@@ -3,8 +3,8 @@ package groups
 import (
 	"net/http"
 
-	"gitlab.com/gitlab-org/gitlab-redux/go_app/internal/middleware"
-	"gitlab.com/gitlab-org/gitlab-redux/go_app/internal/models"
+	"github.com/cyrex562/gitlab-redux/internal/middleware"
+	"github.com/cyrex562/gitlab-redux/internal/models"
 )
 
 // DependencyProxiesHandler handles dependency proxy related requests for groups
