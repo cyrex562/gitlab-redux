@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rust Full-Stack App</title>
+    <!-- HTMX -->
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="/assets/stylesheets/application.css">
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto px-4 py-8">
+        <header class="mb-8">
+            <h1 class="text-4xl font-bold text-gray-800">Rust Full-Stack App</h1>
+        </header>
+
+        <main>
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <h2 class="text-2xl font-semibold mb-4">Welcome</h2>
+                <p class="text-gray-600 mb-4">
+                    This is a full-stack application built with Rust, HTMX, PostgreSQL, and Redis.
+                </p>
+                
+                <!-- Example of HTMX usage -->
+                <div class="mt-4">
+                    <button
+                        class="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded"
+                        hx-get="/health"
+                        hx-trigger="click"
+                        hx-target="#health-status"
+                    >
+                        Check Health
+                    </button>
+                    <div id="health-status" class="mt-4"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <!-- Custom JavaScript -->
+    <script src="/assets/javascripts/application.js"></script>
+</body>
+</html> 
