@@ -5,6 +5,13 @@ use actix_web::{web, HttpResponse};
 use futures::{StreamExt, TryStreamExt};
 use std::io::Write;
 use std::path::Path;
+use std::sync::Arc;
+use tokio::sync::RwLock;
+
+use crate::controllers::concerns::send_file_upload::SendFileUpload;
+use crate::models::upload::Upload;
+use crate::utils::path_traversal::PathTraversal;
+use crate::utils::strong_memoize::StrongMemoize;
 
 const UPLOAD_MOUNTS: &[&str] = &[
     "avatar",
@@ -19,7 +26,7 @@ const UPLOAD_MOUNTS: &[&str] = &[
 const ID_BASED_UPLOAD_PATH_VERSION: i32 = 2;
 
 /// Module for handling file uploads
-pub trait UploadsActions {
+pub trait UploadsActions: SendFileUpload + StrongMemoize {
     /// Create a new file upload
     async fn create(&self, user: Option<&User>, mut payload: Multipart) -> HttpResponse {
         let uploader = UploadService::new(

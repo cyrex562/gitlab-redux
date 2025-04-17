@@ -1,6 +1,7 @@
 use crate::config::settings::Settings;
 use actix_web::{web, HttpResponse};
 use std::collections::HashMap;
+use std::sync::Arc;
 
 /// Module for handling CSP for static object external storage
 pub trait StaticObjectExternalStorageCsp {
@@ -71,5 +72,72 @@ pub trait StaticObjectExternalStorageCsp {
         }
 
         settings
+    }
+}
+
+/// Module for handling static object external storage CSP
+pub trait StaticObjectExternalStorageCSP {
+    /// Configure content security policy for external storage
+    fn configure_csp(&self, policy: &mut ContentSecurityPolicy) {
+        if policy.directives.is_empty() {
+            return;
+        }
+
+        let settings = self.settings();
+        if !settings.static_objects_external_storage_enabled() {
+            return;
+        }
+
+        let default_connect_src = policy
+            .directives
+            .get("connect-src")
+            .or_else(|| policy.directives.get("default-src"))
+            .cloned()
+            .unwrap_or_default();
+
+        let mut connect_src_values = default_connect_src;
+        connect_src_values.push(settings.static_objects_external_storage_url());
+
+        policy
+            .directives
+            .insert("connect-src".to_string(), connect_src_values);
+    }
+
+    // Required trait methods that need to be implemented by the controller
+    fn settings(&self) -> Arc<Settings>;
+}
+
+/// Content Security Policy configuration
+pub struct ContentSecurityPolicy {
+    /// CSP directives
+    pub directives: std::collections::HashMap<String, Vec<String>>,
+}
+
+impl ContentSecurityPolicy {
+    /// Create a new CSP configuration
+    pub fn new() -> Self {
+        Self {
+            directives: std::collections::HashMap::new(),
+        }
+    }
+
+    /// Add a directive
+    pub fn add_directive(&mut self, name: &str, values: Vec<String>) {
+        self.directives.insert(name.to_string(), values);
+    }
+
+    /// Get a directive
+    pub fn get_directive(&self, name: &str) -> Option<&Vec<String>> {
+        self.directives.get(name)
+    }
+
+    /// Remove a directive
+    pub fn remove_directive(&mut self, name: &str) {
+        self.directives.remove(name);
+    }
+
+    /// Clear all directives
+    pub fn clear(&mut self) {
+        self.directives.clear();
     }
 }

@@ -1,15 +1,86 @@
 use crate::config::settings::Settings;
 use crate::models::user::User;
-use actix_web::{web, HttpResponse};
+use actix_web::{web, HttpRequest, HttpResponse};
 use jsonwebtoken::{encode, EncodingKey, Header};
 use serde::{Deserialize, Serialize};
+use std::cell::RefCell;
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+use crate::auth::current_user_mode::CurrentUserMode;
+use crate::auth::request_authenticator::RequestAuthenticator;
 
 /// Module for handling sessionless authentication
 pub trait SessionlessAuthentication {
+    /// Authenticate a sessionless user
+    fn authenticate_sessionless_user(&self, request_format: &str) -> Option<Arc<User>> {
+        let user = self
+            .request_authenticator()
+            .find_sessionless_user(request_format);
+
+        if let Some(user) = &user {
+            self.sessionless_sign_in(user.clone());
+        }
+
+        user
+    }
+
+    /// Get the request authenticator
+    fn request_authenticator(&self) -> RequestAuthenticator {
+        RequestAuthenticator::new(self.request())
+    }
+
+    /// Check if the current user is a sessionless user
+    fn is_sessionless_user(&self) -> bool {
+        self.current_user().is_some() && self.sessionless_sign_in_flag()
+    }
+
+    /// Set the sessionless sign in flag
+    fn set_sessionless_sign_in_flag(&self, value: bool) {
+        self.sessionless_sign_in_flag_mut().set(value);
+    }
+
+    /// Get the sessionless sign in flag
+    fn sessionless_sign_in_flag(&self) -> bool {
+        *self.sessionless_sign_in_flag_mut().borrow()
+    }
+
+    /// Get a mutable reference to the sessionless sign in flag
+    fn sessionless_sign_in_flag_mut(&self) -> &RefCell<bool>;
+
+    /// Sign in a user without creating a session
+    fn sessionless_sign_in(&self, user: Arc<User>) {
+        // Set the sessionless sign in flag
+        self.set_sessionless_sign_in_flag(true);
+
+        if user.can_log_in_with_non_expired_password() {
+            // Sign in the user without storing in session
+            self.sign_in(user, false, "sessionless_sign_in");
+        } else if self.request_authenticator().can_sign_in_bot(&user) {
+            // Sign in the bot without callbacks
+            self.sign_in_without_callbacks(user, "sessionless_sign_in");
+        }
+    }
+
+    /// Bypass admin mode for sessionless authentication
+    fn sessionless_bypass_admin_mode<F, R>(&self, f: F) -> R
+    where
+        F: FnOnce() -> R,
+    {
+        if !self.settings().admin_mode_enabled() {
+            return f();
+        }
+
+        if let Some(current_user) = self.current_user() {
+            return CurrentUserMode::bypass_session(current_user.id(), f);
+        }
+
+        f()
+    }
+
     /// Get the current user
-    fn current_user(&self) -> Option<&User>;
+    fn current_user(&self) -> Option<Arc<User>>;
 
     /// Get the authentication token
     fn auth_token(&self) -> String;
@@ -30,7 +101,7 @@ pub trait SessionlessAuthentication {
     }
 
     /// Authenticate without a session
-    fn authenticate_without_session(&self) -> Result<User, HttpResponse> {
+    fn authenticate_without_session(&self) -> Result<Arc<User>, HttpResponse> {
         let token = match self.auth_token() {
             Some(token) => token,
             None => {
@@ -52,7 +123,7 @@ pub trait SessionlessAuthentication {
     }
 
     /// Generate a sessionless authentication token
-    fn generate_sessionless_token(&self, user: &User) -> Result<String, HttpResponse> {
+    fn generate_sessionless_token(&self, user: &Arc<User>) -> Result<String, HttpResponse> {
         let settings = Settings::current();
         let expiration = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -83,7 +154,7 @@ pub trait SessionlessAuthentication {
     }
 
     /// Verify a sessionless authentication token
-    fn verify_token(&self, token: &str) -> Result<User, HttpResponse> {
+    fn verify_token(&self, token: &str) -> Result<Arc<User>, HttpResponse> {
         let settings = Settings::current();
 
         // TODO: Implement actual token verification
@@ -160,6 +231,12 @@ pub trait SessionlessAuthentication {
 
         Ok(status)
     }
+
+    /// Sign in a user without creating a session
+    fn sign_in(&self, user: Arc<User>, store: bool, message: &str);
+    fn sign_in_without_callbacks(&self, user: Arc<User>, message: &str);
+    fn settings(&self) -> Arc<Settings>;
+    fn request(&self) -> &HttpRequest;
 }
 
 #[derive(Debug, Serialize, Deserialize)]

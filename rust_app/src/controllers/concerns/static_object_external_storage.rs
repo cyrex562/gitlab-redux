@@ -1,56 +1,64 @@
+use actix_web::{web, HttpRequest, HttpResponse};
+use std::sync::Arc;
+
 use crate::config::settings::Settings;
 use crate::models::project::Project;
-use actix_web::{web, HttpResponse};
+use crate::utils::security::SecurityUtils;
 
-/// Module for handling external storage of static objects
+/// Module for handling static object external storage
 pub trait StaticObjectExternalStorage {
-    /// Redirect to external storage if not already an external storage request
-    fn redirect_to_external_storage(&self, project: Option<&Project>) -> HttpResponse {
-        if !self.external_storage_request() {
-            let settings = Settings::current();
-            if settings.static_objects_external_storage_enabled {
-                let url = self.external_storage_url_or_path(project);
-                HttpResponse::Found().header("Location", url).finish()
-            } else {
-                HttpResponse::Ok().finish()
-            }
-        } else {
-            HttpResponse::Ok().finish()
+    /// Redirect to external storage
+    fn redirect_to_external_storage(&self, req: &HttpRequest) -> HttpResponse {
+        if self.external_storage_request(req) {
+            return HttpResponse::Ok().finish();
         }
+
+        let project = self.project();
+        let full_path = req.uri().path().to_string();
+        let redirect_url = self.external_storage_url_or_path(&full_path, project);
+
+        HttpResponse::Found()
+            .header("Location", redirect_url)
+            .finish()
     }
 
-    /// Check if this is an external storage request
-    fn external_storage_request(&self) -> bool {
-        let header_token = self
-            .request_headers()
+    /// Check if request is from external storage
+    fn external_storage_request(&self, req: &HttpRequest) -> bool {
+        let header_token = req
+            .headers()
             .get("X-Gitlab-External-Storage-Token")
-            .and_then(|v| v.to_str().ok());
+            .and_then(|h| h.to_str().ok());
 
-        if let Some(token) = header_token {
-            let settings = Settings::current();
-            let storage_token = settings.static_objects_external_storage_auth_token.as_str();
+        if let Some(header_token) = header_token {
+            let settings = self.settings();
+            let external_storage_token = settings.static_objects_external_storage_auth_token();
 
-            // Use constant-time comparison to prevent timing attacks
-            if !constant_time_eq(token.as_bytes(), storage_token.as_bytes()) {
-                return false;
+            if SecurityUtils::secure_compare(header_token, external_storage_token) {
+                return true;
             }
-            true
-        } else {
-            false
+
+            // If tokens don't match, raise access denied error
+            panic!("Access denied: Invalid external storage token");
         }
+
+        false
     }
 
-    /// Get external storage URL or path
-    fn external_storage_url_or_path(&self, project: Option<&Project>) -> String;
-
-    /// Get request headers
-    fn request_headers(&self) -> &actix_web::http::header::HeaderMap;
+    // Required trait methods that need to be implemented by the controller
+    fn project(&self) -> Option<Arc<dyn Project>>;
+    fn settings(&self) -> Arc<Settings>;
+    fn external_storage_url_or_path(&self, path: &str, project: Option<Arc<dyn Project>>)
+        -> String;
 }
 
-/// Constant-time string comparison to prevent timing attacks
-fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
-    if a.len() != b.len() {
-        return false;
-    }
-    a.iter().zip(b.iter()).fold(0, |acc, (x, y)| acc | (x ^ y)) == 0
+/// Trait for projects
+pub trait Project: Send + Sync {
+    /// Get project ID
+    fn id(&self) -> i32;
+
+    /// Get project path
+    fn path(&self) -> String;
+
+    /// Get project name
+    fn name(&self) -> String;
 }

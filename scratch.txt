@@ -1,120 +1,123 @@
-One Trust CSP
-Port one_trust_csp.rb to Rust
-Create a module for handling One Trust CSP
-Implement methods for managing One Trust CSP
-
-Hotlink Interceptor
-Port hotlink_interceptor.rb to Rust
-Create a module for handling hotlink interception
-Implement methods for intercepting and managing hotlinks
-
-Impersonation
-Port impersonation.rb to Rust
-Create a module for handling impersonation
-Implement methods for managing user impersonation
-
-Import URL Params
-Port import_url_params.rb to Rust
-Create a module for handling import URL parameters
-Implement methods for processing import URL parameters
-
-Initializes Current User Mode
-Port initializes_current_user_mode.rb to Rust
-Create a module for initializing current user mode
-Implement methods for setting up current user mode
 
 
-Internal Redirect
-Port internal_redirect.rb to Rust
-Create a module for handling internal redirects
-Implement methods for managing internal redirects
 
-Invisible Captcha On Signup
-Port invisible_captcha_on_signup.rb to Rust
-Create a module for handling invisible captcha on signup
-Implement methods for managing invisible captcha during signup
 
-Issuable Actions
-Port issuable_actions.rb to Rust
-Create a module for handling issuable actions
-Implement methods for managing issuables
 
-Issuable Collections
-Port issuable_collections.rb to Rust
-Create a module for handling issuable collections
-Implement methods for managing collections of issuables
 
-Diff For Path
-Port diff_for_path.rb to Rust
-Create a module for handling diffs for paths
-Implement methods for generating diffs for specific paths
 
-Enforces Admin Authentication
-Port enforces_admin_authentication.rb to Rust
-Create a module for enforcing admin authentication
-Implement methods for ensuring admin authentication
 
-Enforces Two Factor Authentication
-Port enforces_two_factor_authentication.rb to Rust
-Create a module for enforcing two-factor authentication
-Implement methods for ensuring two-factor authentication
 
-Filters Events
-Port filters_events.rb to Rust
-Create a module for filtering events
-Implement methods for filtering event data
 
-Find Snippet
-Port find_snippet.rb to Rust
-Create a module for finding snippets
-Implement methods for locating and retrieving snippets
 
-Floc Opt Out
-Port floc_opt_out.rb to Rust
-Create a module for handling FLoC opt-out
-Implement methods for managing FLoC opt-out functionality
 
-Gitlab Recaptcha
-Port gitlab_recaptcha.rb to Rust
-Create a module for handling GitLab reCAPTCHA
-Implement methods for managing reCAPTCHA functionality
 
-Graceful Timeout Handling
-Port graceful_timeout_handling.rb to Rust
-Create a module for handling graceful timeouts
-Implement methods for managing timeouts gracefully
 
-Group Tree
-Port group_tree.rb to Rust
-Create a module for handling group trees
-Implement methods for managing group tree structures
 
-Confirm Email Warning
-Port confirm_email_warning.rb to Rust
-Create a module for handling confirm email warnings
-Implement methods for managing email confirmation warnings
 
-Content Security Policy Patch
-Port content_security_policy_patch.rb to Rust
-Create a module for patching content security policy
-Implement methods for applying CSP patches
 
-Continue Params
-Port continue_params.rb to Rust
-Create a module for handling continue parameters
-Implement methods for processing continue parameters
 
-Controller With Cross Project Access Check
-Port controller_with_cross_project_access_check.rb to Rust
-Create a module for handling cross-project access checks
-Implement methods for checking cross-project access
 
-Creates Commit
-Port creates_commit.rb to Rust
-Create a module for handling commit creation
-Implement methods for creating commits
 
-Cycle Analytics Params
-Port cycle_analytics_params.rb to Rust
-Create a module for handling cycle analytics parameters
-Implement methods for processing cycle analytics parameters
+
+orig_app/app/controllers/concerns/stream_diffs.rb
+orig_app/app/controllers/concerns/strong_pagination_params.rb
+orig_app/app/controllers/concerns/synchronize_broadcast_message_dismissals.rb
+
+orig_app/app/controllers/concerns/runner_setup_scripts.rb
+orig_app/app/controllers/concerns/search_rate_limitable.rb
+orig_app/app/controllers/concerns/security_and_compliance_permissions.rb
+
+orig_app/app/controllers/concerns/send_file_upload.rb
+orig_app/app/controllers/concerns/sends_blob.rb
+orig_app/app/controllers/concerns/sessionless_authentication.rb
+
+orig_app/app/controllers/concerns/skips_already_signed_in_message.rb
+orig_app/app/controllers/concerns/snippet_authorizations.rb
+orig_app/app/controllers/concerns/snippets_sort.rb
+
+orig_app/app/controllers/concerns/sorting_preference.rb
+orig_app/app/controllers/concerns/sourcegraph_decorator.rb
+orig_app/app/controllers/concerns/redirects_for_missing_path_on_tree.rb
+
+orig_app/app/controllers/concerns/render_access_tokens.rb
+orig_app/app/controllers/concerns/render_service_results.rb
+orig_app/app/controllers/concerns/renders_assignees.rb
+
+orig_app/app/controllers/concerns/renders_blob.rb
+orig_app/app/controllers/concerns/renders_commits.rb
+orig_app/app/controllers/concerns/renders_ldap_servers.rb
+
+orig_app/app/controllers/concerns/renders_member_access.rb
+orig_app/app/controllers/concerns/renders_notes.rb
+orig_app/app/controllers/concerns/renders_projects_list.rb
+
+orig_app/app/controllers/concerns/repository_settings_redirect.rb
+orig_app/app/controllers/concerns/request_payload_logger.rb
+orig_app/app/controllers/concerns/requires_allowlisted_monitoring_client.rb
+
+orig_app/app/controllers/concerns/routable_actions.rb
+orig_app/app/controllers/concerns/project_stats_refresh_conflicts_guard.rb
+orig_app/app/controllers/concerns/project_unauthorized.rb
+
+orig_app/app/controllers/concerns/rapid_diffs_resource.rb
+orig_app/app/controllers/concerns/record_user_last_activity.rb
+orig_app/app/controllers/concerns/packages_access.rb
+
+orig_app/app/controllers/concerns/page_limiter.rb
+orig_app/app/controllers/concerns/paginated_collection.rb
+orig_app/app/controllers/concerns/params_backward_compatibility.rb
+
+orig_app/app/controllers/concerns/parse_commit_date.rb
+orig_app/app/controllers/concerns/preferred_language_switcher.rb
+orig_app/app/controllers/concerns/preview_markdown.rb
+
+orig_app/app/controllers/concerns/product_analytics_tracking.rb
+orig_app/app/controllers/concerns/issuable_collections_action.rb
+orig_app/app/controllers/concerns/issuable_links.rb
+
+orig_app/app/controllers/concerns/issues_calendar.rb
+orig_app/app/controllers/concerns/kas_cookie.rb
+orig_app/app/controllers/concerns/known_sign_in.rb
+
+orig_app/app/controllers/concerns/labels_as_hash.rb
+orig_app/app/controllers/concerns/lfs_request.rb
+orig_app/app/controllers/concerns/members_presentation.rb
+
+orig_app/app/controllers/concerns/membership_actions.rb
+orig_app/app/controllers/concerns/milestone_actions.rb
+orig_app/app/controllers/concerns/notes_actions.rb
+
+orig_app/app/controllers/concerns/oauth_applications.rb
+orig_app/app/controllers/concerns/one_trust_csp.rb
+orig_app/app/controllers/concerns/hotlink_interceptor.rb
+
+orig_app/app/controllers/concerns/impersonation.rb
+orig_app/app/controllers/concerns/import_url_params.rb
+orig_app/app/controllers/concerns/initializes_current_user_mode.rb
+
+orig_app/app/controllers/concerns/internal_redirect.rb
+orig_app/app/controllers/concerns/invisible_captcha_on_signup.rb
+orig_app/app/controllers/concerns/issuable_actions.rb
+
+orig_app/app/controllers/concerns/issuable_collections.rb
+orig_app/app/controllers/concerns/diff_for_path.rb
+orig_app/app/controllers/concerns/enforces_admin_authentication.rb
+
+orig_app/app/controllers/concerns/enforces_two_factor_authentication.rb
+orig_app/app/controllers/concerns/filters_events.rb
+orig_app/app/controllers/concerns/find_snippet.rb
+
+orig_app/app/controllers/concerns/floc_opt_out.rb
+orig_app/app/controllers/concerns/gitlab_recaptcha.rb
+orig_app/app/controllers/concerns/graceful_timeout_handling.rb
+
+orig_app/app/controllers/concerns/group_tree.rb
+orig_app/app/controllers/concerns/confirm_email_warning.rb
+orig_app/app/controllers/concerns/content_security_policy_patch.rb
+
+orig_app/app/controllers/concerns/continue_params.rb
+orig_app/app/controllers/concerns/controller_with_cross_project_access_check.rb
+orig_app/app/controllers/concerns/creates_commit.rb
+
+orig_app/app/controllers/concerns/cycle_analytics_params.rb
+
