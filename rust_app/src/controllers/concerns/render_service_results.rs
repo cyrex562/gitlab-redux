@@ -1,33 +1,56 @@
-use actix_web::{HttpResponse, Responder};
-use serde::Serialize;
+use actix_web::{web, HttpRequest, HttpResponse};
+use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
-#[derive(Debug, Serialize)]
-pub struct ServiceResult<T> {
-    pub http_status: u16,
-    pub body: T,
-}
-
-#[derive(Debug, Serialize)]
-pub struct ErrorResult {
-    pub status: String,
-    pub message: String,
-}
-
+/// This trait provides functionality for rendering service results in controllers
 pub trait RenderServiceResults {
-    fn success_response<T: Serialize>(&self, result: ServiceResult<T>) -> impl Responder {
+    /// Render service results for the current request
+    fn render_service_results(&self, req: &HttpRequest) -> HttpResponse;
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ServiceResult {
+    status: String,
+    message: Option<String>,
+    data: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RenderServiceResultsHandler {
+    current_user: Option<Arc<User>>,
+}
+
+impl RenderServiceResultsHandler {
+    pub fn new(current_user: Option<Arc<User>>) -> Self {
+        RenderServiceResultsHandler { current_user }
+    }
+
+    fn fetch_service_results(&self) -> Vec<ServiceResult> {
+        // This would be implemented to fetch service results from the database
+        // For now, we'll return an empty vector
+        Vec::new()
+    }
+}
+
+impl RenderServiceResults for RenderServiceResultsHandler {
+    fn render_service_results(&self, req: &HttpRequest) -> HttpResponse {
+        // Check if user is authenticated
+        if self.current_user.is_none() {
+            return HttpResponse::Unauthorized().finish();
+        }
+
+        // Fetch service results
+        let results = self.fetch_service_results();
+
+        // Render results as JSON
         HttpResponse::Ok()
-            .status(result.http_status)
-            .json(result.body)
+            .content_type("application/json")
+            .json(results)
     }
+}
 
-    fn continue_polling_response(&self) -> impl Responder {
-        HttpResponse::NoContent().json(serde_json::json!({
-            "status": "processing",
-            "message": "Not ready yet. Try again later."
-        }))
-    }
-
-    fn error_response(&self, result: ErrorResult) -> impl Responder {
-        HttpResponse::BadRequest().json(result)
-    }
+// This would be implemented in a separate module
+pub struct User {
+    id: i32,
+    // Add other fields as needed
 }

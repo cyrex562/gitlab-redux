@@ -1,62 +1,44 @@
-use actix_web::{web, HttpResponse, Responder};
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use crate::models::Paginated;
+use actix_web::{error::Error, HttpResponse};
+use serde::Deserialize;
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct PaginatedCollection<T> {
-    pub items: Vec<T>,
-    pub current_page: i32,
-    pub total_pages: i32,
-    pub total_count: i64,
-    pub per_page: i32,
+pub trait PaginatedCollection {
+    fn redirect_out_of_range<T: Paginated>(
+        &self,
+        collection: &T,
+        total_pages: Option<i32>,
+    ) -> Result<bool, Error>;
 }
 
-impl<T> PaginatedCollection<T> {
-    pub fn new(
-        items: Vec<T>,
-        current_page: i32,
-        total_pages: i32,
-        total_count: i64,
-        per_page: i32,
-    ) -> Self {
-        PaginatedCollection {
-            items,
-            current_page,
-            total_pages,
-            total_count,
-            per_page,
-        }
+pub struct PaginatedCollectionImpl;
+
+impl PaginatedCollectionImpl {
+    pub fn new() -> Self {
+        Self
     }
 }
 
-pub trait PaginatedCollectionHandler {
-    fn redirect_out_of_range(
+impl PaginatedCollection for PaginatedCollectionImpl {
+    fn redirect_out_of_range<T: Paginated>(
         &self,
-        collection: &PaginatedCollection<impl std::fmt::Debug>,
+        collection: &T,
         total_pages: Option<i32>,
-    ) -> impl Responder {
-        let total_pages = total_pages.unwrap_or(collection.total_pages);
-
+    ) -> Result<bool, Error> {
+        let total_pages = total_pages.unwrap_or_else(|| collection.total_pages());
         if total_pages == 0 {
-            return HttpResponse::Ok().finish();
+            return Ok(false);
         }
 
-        let out_of_range = collection.current_page > total_pages;
-
+        let out_of_range = collection.current_page() > total_pages;
         if out_of_range {
-            let mut params = self.safe_params();
+            let mut params = collection.params().clone();
             params.insert("page".to_string(), total_pages.to_string());
 
-            let url = self.build_url(&params);
-            return HttpResponse::Found()
-                .append_header(("Location", url))
-                .finish();
+            return Ok(HttpResponse::Found()
+                .header("Location", format!("/{}", params.to_query_string()))
+                .finish());
         }
 
-        HttpResponse::Ok().finish()
+        Ok(false)
     }
-
-    // Required methods to be implemented by concrete types
-    fn safe_params(&self) -> HashMap<String, String>;
-    fn build_url(&self, params: &HashMap<String, String>) -> String;
 }

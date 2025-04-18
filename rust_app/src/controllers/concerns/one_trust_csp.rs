@@ -1,88 +1,79 @@
-use actix_web::{web, HttpRequest, HttpResponse};
+use actix_web::{web, HttpRequest, HttpResponse, Responder};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::sync::Arc;
 
-use crate::config::settings::Settings;
-use crate::utils::helpers::Helpers;
-
-/// Module for OneTrust Content Security Policy
 pub trait OneTrustCSP {
-    /// Configure content security policy for OneTrust
-    fn configure_one_trust_csp(&self, policy: &mut ContentSecurityPolicy) {
-        // Skip if OneTrust is not enabled and no directives are present
-        if !self.helpers().one_trust_enabled() && policy.directives.is_empty() {
-            return;
-        }
-
-        // Configure script-src directive
-        let default_script_src = policy
-            .directives
-            .get("script-src")
-            .or_else(|| policy.directives.get("default-src"))
-            .cloned()
-            .unwrap_or_default();
-
-        let mut script_src_values = default_script_src;
-        script_src_values.push("'unsafe-eval'".to_string());
-        script_src_values.push("https://cdn.cookielaw.org".to_string());
-        script_src_values.push("https://*.onetrust.com".to_string());
-
-        policy
-            .directives
-            .insert("script-src".to_string(), script_src_values);
-
-        // Configure connect-src directive
-        let default_connect_src = policy
-            .directives
-            .get("connect-src")
-            .or_else(|| policy.directives.get("default-src"))
-            .cloned()
-            .unwrap_or_default();
-
-        let mut connect_src_values = default_connect_src;
-        connect_src_values.push("https://cdn.cookielaw.org".to_string());
-        connect_src_values.push("https://*.onetrust.com".to_string());
-
-        policy
-            .directives
-            .insert("connect-src".to_string(), connect_src_values);
-    }
-
-    // Required trait methods that need to be implemented by the controller
-    fn helpers(&self) -> &dyn Helpers;
+    fn set_csp_headers(&self, req: &HttpRequest) -> impl Responder;
 }
 
-/// Content Security Policy configuration
-pub struct ContentSecurityPolicy {
-    /// CSP directives
-    pub directives: HashMap<String, Vec<String>>,
+pub struct OneTrustCSPImpl {
+    nonce: String,
+    report_only: bool,
 }
 
-impl ContentSecurityPolicy {
-    /// Create a new CSP configuration
-    pub fn new() -> Self {
-        Self {
-            directives: HashMap::new(),
-        }
+impl OneTrustCSPImpl {
+    pub fn new(nonce: String, report_only: bool) -> Self {
+        Self { nonce, report_only }
     }
 
-    /// Add a directive
-    pub fn add_directive(&mut self, name: &str, values: Vec<String>) {
-        self.directives.insert(name.to_string(), values);
+    fn csp_directives(&self) -> HashMap<String, String> {
+        let mut directives = HashMap::new();
+
+        // Default directives
+        directives.insert("default-src".to_string(), "'self'".to_string());
+        directives.insert(
+            "script-src".to_string(),
+            format!(
+                "'self' 'nonce-{}' 'unsafe-inline' 'unsafe-eval'",
+                self.nonce
+            ),
+        );
+        directives.insert(
+            "style-src".to_string(),
+            "'self' 'unsafe-inline'".to_string(),
+        );
+        directives.insert(
+            "img-src".to_string(),
+            "'self' data: blob: https:".to_string(),
+        );
+        directives.insert("font-src".to_string(), "'self' data: https:".to_string());
+        directives.insert("connect-src".to_string(), "'self' https: wss:".to_string());
+        directives.insert("frame-src".to_string(), "'self' https:".to_string());
+        directives.insert("object-src".to_string(), "'none'".to_string());
+        directives.insert("base-uri".to_string(), "'self'".to_string());
+        directives.insert("form-action".to_string(), "'self'".to_string());
+        directives.insert("frame-ancestors".to_string(), "'none'".to_string());
+        directives.insert("upgrade-insecure-requests".to_string(), "".to_string());
+
+        directives
     }
 
-    /// Get a directive
-    pub fn get_directive(&self, name: &str) -> Option<&Vec<String>> {
-        self.directives.get(name)
+    fn format_csp_header(&self) -> String {
+        let directives = self.csp_directives();
+        directives
+            .iter()
+            .map(|(key, value)| {
+                if value.is_empty() {
+                    key.clone()
+                } else {
+                    format!("{} {}", key, value)
+                }
+            })
+            .collect::<Vec<String>>()
+            .join("; ")
     }
+}
 
-    /// Remove a directive
-    pub fn remove_directive(&mut self, name: &str) {
-        self.directives.remove(name);
-    }
+impl OneTrustCSP for OneTrustCSPImpl {
+    fn set_csp_headers(&self, req: &HttpRequest) -> impl Responder {
+        let header_name = if self.report_only {
+            "Content-Security-Policy-Report-Only"
+        } else {
+            "Content-Security-Policy"
+        };
 
-    /// Clear all directives
-    pub fn clear(&mut self) {
-        self.directives.clear();
+        HttpResponse::Ok()
+            .header(header_name, self.format_csp_header())
+            .finish()
     }
 }

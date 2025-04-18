@@ -1,262 +1,163 @@
-use actix_web::{web, HttpResponse, Responder};
+use actix_web::{web, HttpRequest, HttpResponse, Result};
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
-use crate::models::wiki::{Wiki, WikiDirectory, WikiPage};
-use crate::services::wiki_pages::{CreateService, UpdateService};
-use crate::utils::strong_memoize::StrongMemoize;
+const RESCUE_GIT_TIMEOUTS_IN: &[&str] = &[
+    "show",
+    "raw",
+    "edit",
+    "history",
+    "diff",
+    "pages",
+    "templates",
+];
+const SIDEBAR: &str = "sidebar";
 
-/// Module for handling wiki actions
-pub trait WikiActions: StrongMemoize {
-    /// Get the container (Project or Group)
-    fn container(&self) -> Box<dyn std::any::Any>;
+#[derive(Debug, Serialize, Deserialize)]
+pub struct WikiPage {
+    pub title: String,
+    pub content: String,
+    pub format: String,
+    pub message: Option<String>,
+    pub last_commit_sha: Option<String>,
+}
 
-    /// Get the current user ID
-    fn current_user_id(&self) -> Option<i32>;
+#[derive(Debug)]
+pub struct Wiki {
+    pub repository: Arc<RwLock<git2::Repository>>,
+    pub container: Arc<dyn WikiContainer>,
+}
 
-    /// Get the wiki
-    fn wiki(&self) -> Arc<RwLock<Wiki>> {
-        self.strong_memoize("wiki", || {
-            let container = self.container();
-            // TODO: Implement wiki creation based on container
-            Arc::new(RwLock::new(Wiki::new()))
-        })
+pub trait WikiContainer: Send + Sync {
+    fn id(&self) -> i64;
+    fn name(&self) -> &str;
+    fn glql_integration_feature_flag_enabled(&self) -> bool;
+    fn glql_load_on_click_feature_flag_enabled(&self) -> bool;
+    fn continue_indented_text_feature_flag_enabled(&self) -> bool;
+}
+
+pub trait WikiActions {
+    fn new_page(&self, req: &HttpRequest) -> Result<HttpResponse>;
+    fn pages(&self, req: &HttpRequest) -> Result<HttpResponse>;
+    fn show(&self, req: &HttpRequest) -> Result<HttpResponse>;
+    fn raw(&self, req: &HttpRequest) -> Result<HttpResponse>;
+    fn edit(&self, req: &HttpRequest) -> Result<HttpResponse>;
+    fn update(&self, req: &HttpRequest) -> Result<HttpResponse>;
+    fn create(&self, req: &HttpRequest) -> Result<HttpResponse>;
+    fn history(&self, req: &HttpRequest) -> Result<HttpResponse>;
+    fn diff(&self, req: &HttpRequest) -> Result<HttpResponse>;
+    fn destroy(&self, req: &HttpRequest) -> Result<HttpResponse>;
+}
+
+pub struct WikiHandler {
+    wiki: Arc<Wiki>,
+    current_user: Arc<dyn User>,
+}
+
+impl WikiHandler {
+    pub fn new(wiki: Arc<Wiki>, current_user: Arc<dyn User>) -> Self {
+        WikiHandler { wiki, current_user }
     }
 
-    /// Get the current page
-    fn page(&self) -> Option<Arc<RwLock<WikiPage>>> {
-        self.strong_memoize("page", || {
-            let wiki = self.wiki();
-            let page_id = self.page_params().get("id").cloned();
-            page_id.and_then(|id| {
-                // TODO: Implement page lookup
-                Some(Arc::new(RwLock::new(WikiPage::new())))
-            })
-        })
+    fn authorize_read_wiki(&self) -> Result<()> {
+        // Implement authorization logic
+        Ok(())
     }
 
-    /// Get page parameters
-    fn page_params(&self) -> HashMap<String, String> {
-        let mut params = HashMap::new();
-        if let Some(id) = self.request_param("id") {
-            params.insert("id".to_string(), id);
-        }
-        params
+    fn authorize_create_wiki(&self) -> Result<()> {
+        // Implement authorization logic
+        Ok(())
     }
 
-    /// Get a request parameter
-    fn request_param(&self, name: &str) -> Option<String>;
-
-    /// Create a new wiki page
-    async fn create(&self) -> impl Responder {
-        let wiki_params = self.wiki_params();
-        let container = self.container();
-        let current_user_id = self.current_user_id();
-
-        let service = CreateService::new(container, current_user_id);
-        match service.execute(wiki_params).await {
-            Ok(response) => {
-                if response.success {
-                    self.handle_action_success("created", response.page).await
-                } else {
-                    let templates = self.templates_list().await;
-                    // TODO: Render edit template with error
-                    HttpResponse::Ok().finish()
-                }
-            }
-            Err(_) => HttpResponse::InternalServerError().finish(),
-        }
+    fn load_sidebar(&self) -> Result<Option<WikiPage>> {
+        // Implement sidebar loading logic
+        Ok(None)
     }
 
-    /// Update a wiki page
-    async fn update(&self) -> impl Responder {
-        if !self.can_create_wiki() {
-            return HttpResponse::Ok().json(serde_json::json!({
-                "error": "You are not authorized to create wiki pages"
-            }));
-        }
-
-        let wiki_params = self.wiki_params();
-        let container = self.container();
-        let current_user_id = self.current_user_id();
-
-        let service = UpdateService::new(container, current_user_id);
-        match service.execute(self.page().unwrap(), wiki_params).await {
-            Ok(response) => {
-                if response.success {
-                    self.handle_action_success("updated", response.page).await
-                } else {
-                    let templates = self.templates_list().await;
-                    // TODO: Render edit template with error
-                    HttpResponse::Ok().finish()
-                }
-            }
-            Err(_) => HttpResponse::InternalServerError().finish(),
-        }
-    }
-
-    /// Show a wiki page
-    async fn show(&self) -> impl Responder {
-        if let Some(page) = self.page() {
-            if !self.valid_encoding() {
-                self.set_encoding_error();
-            }
-
-            let version_id = self.request_param("version_id");
-            let path = page.read().await.path();
-            let templates = self.templates_list().await;
-
-            // TODO: Render show template
-            HttpResponse::Ok().finish()
-        } else if let Some(file_blob) = self.file_blob().await {
-            self.send_wiki_file_blob(self.wiki().clone(), file_blob)
-                .await
-        } else {
-            self.handle_redirection().await
-        }
-    }
-
-    /// Get wiki parameters
-    fn wiki_params(&self) -> HashMap<String, String> {
-        let mut params = HashMap::new();
-        if let Some(title) = self.request_param("title") {
-            params.insert("title".to_string(), title);
-        }
-        if let Some(content) = self.request_param("content") {
-            params.insert("content".to_string(), content);
-        }
-        if let Some(format) = self.request_param("format") {
-            params.insert("format".to_string(), format);
-        }
-        if let Some(message) = self.request_param("message") {
-            params.insert("message".to_string(), message);
-        }
-        if let Some(last_commit_sha) = self.request_param("last_commit_sha") {
-            params.insert("last_commit_sha".to_string(), last_commit_sha);
-        }
-        params
-    }
-
-    /// Check if the current user can create wiki pages
-    fn can_create_wiki(&self) -> bool {
-        // TODO: Implement authorization check
-        true
-    }
-
-    /// Handle action success
-    async fn handle_action_success(
-        &self,
-        action: &str,
-        page: Arc<RwLock<WikiPage>>,
-    ) -> impl Responder {
-        let page_title = page.read().await.title();
-        if page_title == "sidebar" {
-            // TODO: Handle sidebar update
-            HttpResponse::Ok().finish()
-        } else {
-            // TODO: Redirect to the updated page
-            HttpResponse::Ok().finish()
-        }
-    }
-
-    /// Get the file blob
-    async fn file_blob(&self) -> Option<Vec<u8>> {
-        self.strong_memoize("file_blob", || {
-            // TODO: Implement file blob lookup
-            None
-        })
-    }
-
-    /// Send wiki file blob
-    async fn send_wiki_file_blob(
-        &self,
-        wiki: Arc<RwLock<Wiki>>,
-        file_blob: Vec<u8>,
-    ) -> impl Responder {
-        // TODO: Implement file blob sending
-        HttpResponse::Ok().finish()
-    }
-
-    /// Check if the page encoding is valid
-    fn valid_encoding(&self) -> bool {
-        // TODO: Implement encoding validation
-        true
-    }
-
-    /// Set encoding error
-    fn set_encoding_error(&self) {
-        // TODO: Implement encoding error handling
-    }
-
-    /// Handle redirection
-    async fn handle_redirection(&self) -> impl Responder {
-        if self.show_create_form() {
-            self.handle_create_form().await
-        } else if self.wiki().read().await.exists() {
-            // TODO: Render 404 template
-            HttpResponse::NotFound().finish()
-        } else {
-            // TODO: Render empty template
-            HttpResponse::Ok().finish()
-        }
-    }
-
-    /// Handle create form
-    async fn handle_create_form(&self) -> impl Responder {
-        let title = self.request_param("id").unwrap_or_default();
-        let page = self.build_page(title);
-        let templates = self.templates_list().await;
-
-        // TODO: Render edit template
-        HttpResponse::Ok().finish()
-    }
-
-    /// Build a new page
-    fn build_page(&self, title: String) -> Arc<RwLock<WikiPage>> {
-        Arc::new(RwLock::new(WikiPage::new()))
-    }
-
-    /// Check if we should show the create form
-    fn show_create_form(&self) -> bool {
-        self.can_create_wiki()
-    }
-
-    /// Get templates list
-    async fn templates_list(&self) -> Vec<Arc<RwLock<WikiPage>>> {
-        self.strong_memoize("templates_list", || {
-            let wiki = self.wiki();
-            // TODO: Implement templates list
-            Vec::new()
-        })
-    }
-
-    /// Find redirection
     fn find_redirection(&self, path: &str, redirect_limit: usize) -> Option<String> {
-        let mut seen = HashSet::new();
-        let mut current = path.to_string();
+        // Implement redirection logic
+        None
+    }
 
-        for _ in 0..redirect_limit {
-            if seen.contains(&current) {
-                return Some(current);
-            }
-            seen.insert(current.clone());
-
-            if let Some(redir) = self.find_single_redirection(&current) {
-                current = redir;
-            } else {
-                return None;
-            }
+    fn handle_action_success(&self, action: &str, page: &WikiPage) -> Result<HttpResponse> {
+        if page.title == SIDEBAR {
+            // Handle sidebar update
+            Ok(HttpResponse::Ok().finish())
+        } else {
+            // Handle regular page update
+            Ok(HttpResponse::Ok().finish())
         }
+    }
+}
 
-        None
+impl WikiActions for WikiHandler {
+    fn new_page(&self, req: &HttpRequest) -> Result<HttpResponse> {
+        let uuid = Uuid::new_v4();
+        Ok(HttpResponse::Found()
+            .header("Location", format!("/wiki/{}", uuid))
+            .finish())
     }
 
-    /// Find single redirection
-    fn find_single_redirection(&self, path: &str) -> Option<String> {
-        // TODO: Implement single redirection lookup
-        None
+    fn pages(&self, req: &HttpRequest) -> Result<HttpResponse> {
+        self.authorize_read_wiki()?;
+        // Implement pages listing logic
+        Ok(HttpResponse::Ok().finish())
     }
+
+    fn show(&self, req: &HttpRequest) -> Result<HttpResponse> {
+        self.authorize_read_wiki()?;
+        // Implement page showing logic
+        Ok(HttpResponse::Ok().finish())
+    }
+
+    fn raw(&self, req: &HttpRequest) -> Result<HttpResponse> {
+        self.authorize_read_wiki()?;
+        // Implement raw content logic
+        Ok(HttpResponse::Ok().content_type("text/plain").finish())
+    }
+
+    fn edit(&self, req: &HttpRequest) -> Result<HttpResponse> {
+        self.authorize_create_wiki()?;
+        // Implement edit form logic
+        Ok(HttpResponse::Ok().finish())
+    }
+
+    fn update(&self, req: &HttpRequest) -> Result<HttpResponse> {
+        self.authorize_create_wiki()?;
+        // Implement update logic
+        Ok(HttpResponse::Ok().finish())
+    }
+
+    fn create(&self, req: &HttpRequest) -> Result<HttpResponse> {
+        self.authorize_create_wiki()?;
+        // Implement create logic
+        Ok(HttpResponse::Ok().finish())
+    }
+
+    fn history(&self, req: &HttpRequest) -> Result<HttpResponse> {
+        self.authorize_read_wiki()?;
+        // Implement history logic
+        Ok(HttpResponse::Ok().finish())
+    }
+
+    fn diff(&self, req: &HttpRequest) -> Result<HttpResponse> {
+        self.authorize_read_wiki()?;
+        // Implement diff logic
+        Ok(HttpResponse::Ok().finish())
+    }
+
+    fn destroy(&self, req: &HttpRequest) -> Result<HttpResponse> {
+        self.authorize_create_wiki()?;
+        // Implement destroy logic
+        Ok(HttpResponse::Ok().finish())
+    }
+}
+
+pub trait User: Send + Sync {
+    fn id(&self) -> i64;
+    fn name(&self) -> &str;
+    fn can_create_wiki(&self, container: &dyn WikiContainer) -> bool;
 }

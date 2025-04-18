@@ -1,46 +1,48 @@
-use actix_web::{HttpRequest, HttpResponse};
-use std::path::Path;
+use actix_web::{web, HttpRequest, HttpResponse};
+use std::path::PathBuf;
 
+/// This trait provides functionality for handling redirects when a path is missing in a tree
 pub trait RedirectsForMissingPathOnTree {
-    fn redirect_to_tree_root_for_missing_path(
+    /// Handle redirect for missing path in tree
+    fn redirect_for_missing_path_on_tree(
         &self,
         req: &HttpRequest,
-        project_path: &str,
-        ref_name: &str,
         path: &str,
-    ) -> HttpResponse {
-        let truncated_path = self.truncate_path(path);
-        let message = self.missing_path_on_ref(project_path, ref_name, &truncated_path);
+    ) -> Result<HttpResponse, HttpResponse>;
+}
 
-        HttpResponse::Found()
-            .header("Location", format!("/{}/tree/{}", project_path, ref_name))
-            .header("X-Flash-Message", message)
-            .finish()
+pub struct RedirectsForMissingPathOnTreeHandler;
+
+impl RedirectsForMissingPathOnTreeHandler {
+    pub fn new() -> Self {
+        RedirectsForMissingPathOnTreeHandler
     }
-
-    fn missing_path_on_ref(&self, project_path: &str, ref_name: &str, path: &str) -> String {
-        format!("The path '{}' does not exist on '{}'", path, ref_name)
-    }
-
-    fn truncate_path(&self, path: &str) -> String {
-        const MAX_LENGTH: usize = 60;
-
-        if path.len() <= MAX_LENGTH {
-            return path.to_string();
-        }
-
-        let path_obj = Path::new(path);
-        if let Some(file_name) = path_obj.file_name() {
-            if let Some(file_name_str) = file_name.to_str() {
-                let truncated = format!(".../{}", file_name_str);
-                if truncated.len() <= MAX_LENGTH {
-                    return truncated;
-                }
-            }
-        }
-
-        // If we can't get a filename or the truncated version is too long,
-        // just return the first MAX_LENGTH characters
-        path.chars().take(MAX_LENGTH).collect()
+    
+    fn find_matching_path(&self, path: &str) -> Option<String> {
+        // This would be implemented to find the closest matching path in the tree
+        // For now, we'll just return None
+        None
     }
 }
+
+impl RedirectsForMissingPathOnTree for RedirectsForMissingPathOnTreeHandler {
+    fn redirect_for_missing_path_on_tree(
+        &self,
+        req: &HttpRequest,
+        path: &str,
+    ) -> Result<HttpResponse, HttpResponse> {
+        // Try to find a matching path
+        if let Some(matching_path) = self.find_matching_path(path) {
+            // Construct the redirect URL
+            let redirect_url = format!("{}/tree/{}", req.uri().path(), matching_path);
+            
+            // Return a redirect response
+            Ok(HttpResponse::Found()
+                .header("Location", redirect_url)
+                .finish())
+        } else {
+            // If no matching path is found, return a 404
+            Err(HttpResponse::NotFound().finish())
+        }
+    }
+} 

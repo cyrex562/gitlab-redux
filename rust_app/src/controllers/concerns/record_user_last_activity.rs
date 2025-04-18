@@ -1,75 +1,65 @@
-use actix_web::{web, HttpRequest};
-use std::sync::Arc;
+use actix_web::{dev::ServiceRequest, error::Error};
+use crate::{
+    models::{User, Group, Project},
+    services::users::ActivityService,
+    utils::{
+        database::Database,
+        event_store::EventStore,
+        cookies::CookiesHelper,
+    },
+};
 
-use crate::config::database::Database;
-use crate::events::event_store::EventStore;
-use crate::events::users::activity_event::ActivityEvent;
-use crate::models::group::Group;
-use crate::models::project::Project;
-use crate::models::user::User;
-use crate::services::users::activity_service::ActivityService;
-
-/// Module for recording user last activity
 pub trait RecordUserLastActivity {
-    /// Set the user's last activity
-    fn set_user_last_activity(&self, req: &HttpRequest) {
-        // Only record activity for GET requests
-        if req.method() != "GET" {
-            return;
+    fn set_user_last_activity(&self, req: &ServiceRequest) -> Result<(), Error>;
+    fn set_member_last_activity(&self, req: &ServiceRequest) -> Result<(), Error>;
+}
+
+pub struct RecordUserLastActivityImpl {
+    cookies_helper: Box<dyn CookiesHelper>,
+}
+
+impl RecordUserLastActivityImpl {
+    pub fn new(cookies_helper: Box<dyn CookiesHelper>) -> Self {
+        Self { cookies_helper }
+    }
+}
+
+impl RecordUserLastActivity for RecordUserLastActivityImpl {
+    fn set_user_last_activity(&self, req: &ServiceRequest) -> Result<(), Error> {
+        if req.method() != actix_web::http::Method::GET {
+            return Ok(());
         }
 
-        // Don't record activity in read-only mode
         if Database::is_read_only() {
-            return;
+            return Ok(());
         }
 
-        // Only record activity for authenticated users
-        if let Some(current_user) = self.current_user() {
-            // Record user activity
-            ActivityService::new(current_user.clone()).execute();
+        if let Some(user) = req.extensions().get::<User>() {
+            ActivityService::new(user.clone()).execute()?;
         }
+
+        Ok(())
     }
 
-    /// Set the member's last activity
-    fn set_member_last_activity(&self, req: &HttpRequest) {
-        // Only record activity for authenticated users
-        if let Some(current_user) = self.current_user() {
-            // Get the context (group or project)
-            let context = self.get_context();
+    fn set_member_last_activity(&self, req: &ServiceRequest) -> Result<(), Error> {
+        let context = req.extensions().get::<Group>()
+            .or_else(|| req.extensions().get::<Project>());
 
-            if let Some(context) = context {
-                // Only record activity for persisted contexts
-                if context.is_persisted() {
-                    // Get the root ancestor ID
-                    let root_ancestor_id = context.root_ancestor_id();
-
-                    // Publish activity event
-                    let event = ActivityEvent::new(current_user.id(), root_ancestor_id);
-
-                    EventStore::publish(event);
-                }
+        if let (Some(user), Some(context)) = (
+            req.extensions().get::<User>(),
+            context,
+        ) {
+            if context.is_persisted() {
+                EventStore::publish(serde_json::json!({
+                    "type": "Users::ActivityEvent",
+                    "data": {
+                        "user_id": user.id,
+                        "namespace_id": context.root_ancestor().id
+                    }
+                }))?;
             }
         }
+
+        Ok(())
     }
-
-    /// Get the current context (group or project)
-    fn get_context(&self) -> Option<Arc<dyn Context>> {
-        self.group()
-            .map(|g| g as Arc<dyn Context>)
-            .or_else(|| self.project().map(|p| p as Arc<dyn Context>))
-    }
-
-    // Required trait methods that need to be implemented by the controller
-    fn current_user(&self) -> Option<Arc<User>>;
-    fn group(&self) -> Option<Arc<Group>>;
-    fn project(&self) -> Option<Arc<Project>>;
-}
-
-/// Trait for context objects (groups and projects)
-pub trait Context {
-    /// Check if the context is persisted
-    fn is_persisted(&self) -> bool;
-
-    /// Get the root ancestor ID
-    fn root_ancestor_id(&self) -> i64;
-}
+} 

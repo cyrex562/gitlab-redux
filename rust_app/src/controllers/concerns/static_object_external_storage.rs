@@ -1,64 +1,110 @@
-use actix_web::{web, HttpRequest, HttpResponse};
+use actix_web::{web, HttpRequest, HttpResponse, Result};
 use std::sync::Arc;
 
-use crate::config::settings::Settings;
-use crate::models::project::Project;
-use crate::utils::security::SecurityUtils;
+// Define the Project trait
+pub trait Project: Send + Sync {
+    fn id(&self) -> i64;
+    fn name(&self) -> &str;
+}
 
-/// Module for handling static object external storage
+// Define the Settings trait
+pub trait Settings: Send + Sync {
+    fn static_objects_external_storage_auth_token(&self) -> Option<String>;
+    fn static_objects_external_storage_enabled(&self) -> bool;
+    fn static_objects_external_storage_url(&self) -> Option<String>;
+}
+
+// Define the StaticObjectExternalStorage trait
 pub trait StaticObjectExternalStorage {
-    /// Redirect to external storage
-    fn redirect_to_external_storage(&self, req: &HttpRequest) -> HttpResponse {
+    fn redirect_to_external_storage(&self, req: &HttpRequest) -> Result<HttpResponse>;
+    fn external_storage_request(&self, req: &HttpRequest) -> bool;
+    fn external_storage_url_or_path(&self, path: &str, project: Option<&dyn Project>) -> String;
+    fn get_settings(&self) -> Arc<dyn Settings>;
+    fn get_project(&self) -> Option<Arc<dyn Project>>;
+    fn get_request_path(&self, req: &HttpRequest) -> String;
+    fn get_request_header(&self, req: &HttpRequest, name: &str) -> Option<String>;
+}
+
+// Define the StaticObjectExternalStorageHandler struct
+pub struct StaticObjectExternalStorageHandler {
+    settings: Arc<dyn Settings>,
+}
+
+impl StaticObjectExternalStorageHandler {
+    pub fn new(settings: Arc<dyn Settings>) -> Self {
+        StaticObjectExternalStorageHandler { settings }
+    }
+}
+
+// Implement the StaticObjectExternalStorage trait for StaticObjectExternalStorageHandler
+impl StaticObjectExternalStorage for StaticObjectExternalStorageHandler {
+    fn redirect_to_external_storage(&self, req: &HttpRequest) -> Result<HttpResponse> {
         if self.external_storage_request(req) {
-            return HttpResponse::Ok().finish();
+            return Ok(HttpResponse::Ok().finish());
         }
 
-        let project = self.project();
-        let full_path = req.uri().path().to_string();
-        let redirect_url = self.external_storage_url_or_path(&full_path, project);
+        let path = self.get_request_path(req);
+        let project = self.get_project();
+        let url = self.external_storage_url_or_path(&path, project.as_deref());
 
-        HttpResponse::Found()
-            .header("Location", redirect_url)
-            .finish()
+        Ok(HttpResponse::Found().header("Location", url).finish())
     }
 
-    /// Check if request is from external storage
     fn external_storage_request(&self, req: &HttpRequest) -> bool {
-        let header_token = req
-            .headers()
-            .get("X-Gitlab-External-Storage-Token")
-            .and_then(|h| h.to_str().ok());
-
-        if let Some(header_token) = header_token {
-            let settings = self.settings();
-            let external_storage_token = settings.static_objects_external_storage_auth_token();
-
-            if SecurityUtils::secure_compare(header_token, external_storage_token) {
-                return true;
+        if let Some(header_token) = self.get_request_header(req, "X-Gitlab-External-Storage-Token")
+        {
+            if let Some(external_storage_token) =
+                self.settings.static_objects_external_storage_auth_token()
+            {
+                // Use a secure comparison to prevent timing attacks
+                return secure_compare(&header_token, &external_storage_token);
             }
-
-            // If tokens don't match, raise access denied error
-            panic!("Access denied: Invalid external storage token");
         }
 
         false
     }
 
-    // Required trait methods that need to be implemented by the controller
-    fn project(&self) -> Option<Arc<dyn Project>>;
-    fn settings(&self) -> Arc<Settings>;
-    fn external_storage_url_or_path(&self, path: &str, project: Option<Arc<dyn Project>>)
-        -> String;
+    fn external_storage_url_or_path(&self, path: &str, project: Option<&dyn Project>) -> String {
+        if let Some(url) = self.settings.static_objects_external_storage_url() {
+            format!("{}{}", url, path)
+        } else {
+            path.to_string()
+        }
+    }
+
+    fn get_settings(&self) -> Arc<dyn Settings> {
+        self.settings.clone()
+    }
+
+    fn get_project(&self) -> Option<Arc<dyn Project>> {
+        // This would be implemented by the concrete class
+        None
+    }
+
+    fn get_request_path(&self, req: &HttpRequest) -> String {
+        // This would be implemented by the concrete class
+        req.uri().path().to_string()
+    }
+
+    fn get_request_header(&self, req: &HttpRequest, name: &str) -> Option<String> {
+        // This would be implemented by the concrete class
+        req.headers()
+            .get(name)
+            .and_then(|v| v.to_str().ok())
+            .map(|s| s.to_string())
+    }
 }
 
-/// Trait for projects
-pub trait Project: Send + Sync {
-    /// Get project ID
-    fn id(&self) -> i32;
+// Helper function to perform a secure comparison of two strings
+fn secure_compare(a: &str, b: &str) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
 
-    /// Get project path
-    fn path(&self) -> String;
+    let mut result = 0u8;
+    for (a_byte, b_byte) in a.bytes().zip(b.bytes()) {
+        result |= a_byte ^ b_byte;
+    }
 
-    /// Get project name
-    fn name(&self) -> String;
+    result == 0
 }

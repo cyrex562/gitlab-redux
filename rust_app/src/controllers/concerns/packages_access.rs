@@ -1,60 +1,39 @@
-use actix_web::{HttpRequest, HttpResponse};
-use std::sync::OnceLock;
-
-pub struct GitlabConfig {
-    pub packages: PackagesConfig,
-}
-
-pub struct PackagesConfig {
-    pub enabled: bool,
-}
-
-impl GitlabConfig {
-    pub fn get() -> &'static GitlabConfig {
-        static INSTANCE: OnceLock<GitlabConfig> = OnceLock::new();
-        INSTANCE.get_or_init(|| GitlabConfig {
-            packages: PackagesConfig { enabled: true },
-        })
-    }
-}
-
-pub struct Project {
-    // Add project fields as needed
-}
-
-impl Project {
-    pub fn packages_policy_subject(&self) -> &dyn Any {
-        // Implementation would depend on your policy system
-        self
-    }
-}
+use crate::{
+    config::Settings,
+    models::{Project, User},
+    utils::authorization::Can,
+};
+use actix_web::{error::Error, HttpResponse};
 
 pub trait PackagesAccess {
-    fn verify_packages_enabled(&self) -> HttpResponse {
-        if GitlabConfig::get().packages.enabled {
-            HttpResponse::Ok().finish()
-        } else {
-            HttpResponse::NotFound().finish()
-        }
-    }
-
-    fn verify_read_package(&self, req: &HttpRequest) -> HttpResponse {
-        if self.can_read_package(
-            self.get_current_user(),
-            self.get_project().map(|p| p.packages_policy_subject()),
-        ) {
-            HttpResponse::Ok().finish()
-        } else {
-            HttpResponse::Forbidden().finish()
-        }
-    }
-
-    // Required methods to be implemented by concrete types
-    fn get_current_user(&self) -> &User;
-    fn get_project(&self) -> Option<&Project>;
-    fn can_read_package(&self, user: &User, subject: Option<&dyn Any>) -> bool;
+    fn verify_packages_enabled(&self) -> Result<(), Error>;
+    fn verify_read_package(&self, user: &User, project: &Project) -> Result<(), Error>;
 }
 
-pub struct User {
-    // Add user fields as needed
+pub struct PackagesAccessImpl {
+    settings: Settings,
+}
+
+impl PackagesAccessImpl {
+    pub fn new(settings: Settings) -> Self {
+        Self { settings }
+    }
+}
+
+impl PackagesAccess for PackagesAccessImpl {
+    fn verify_packages_enabled(&self) -> Result<(), Error> {
+        if !self.settings.packages.enabled {
+            return Err(actix_web::error::ErrorNotFound("Packages are not enabled"));
+        }
+        Ok(())
+    }
+
+    fn verify_read_package(&self, user: &User, project: &Project) -> Result<(), Error> {
+        if let Some(packages_policy_subject) = project.packages_policy_subject() {
+            if !Can::can(user, "read_package", packages_policy_subject) {
+                return Err(actix_web::error::ErrorForbidden("Access denied"));
+            }
+        }
+        Ok(())
+    }
 }

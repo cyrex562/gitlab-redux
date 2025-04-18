@@ -1,104 +1,93 @@
-use actix_web::{web, HttpResponse};
-use serde::{Deserialize, Serialize};
+use actix_web::{web, HttpRequest, HttpResponse};
 use std::collections::HashMap;
+use url::Url;
 
-/// Module for handling Content Security Policy for Web IDE
-pub trait WebIdeCsp {
-    /// Get the CSP directives
-    fn csp_directives(&self) -> HashMap<String, String> {
-        let mut directives = HashMap::new();
+pub trait WebIdeCSP {
+    fn include_web_ide_csp(&self, req: &HttpRequest) -> Result<(), Box<dyn std::error::Error>>;
+}
 
-        // Default CSP directives for Web IDE
-        directives.insert(
-            "default-src".to_string(),
-            "'self' 'unsafe-inline' 'unsafe-eval'".to_string(),
-        );
-        directives.insert(
-            "script-src".to_string(),
-            "'self' 'unsafe-inline' 'unsafe-eval'".to_string(),
-        );
-        directives.insert(
-            "style-src".to_string(),
-            "'self' 'unsafe-inline'".to_string(),
-        );
-        directives.insert(
-            "img-src".to_string(),
-            "'self' data: blob: https:".to_string(),
-        );
-        directives.insert("connect-src".to_string(), "'self' wss: https:".to_string());
-        directives.insert("font-src".to_string(), "'self' data: https:".to_string());
-        directives.insert("object-src".to_string(), "'none'".to_string());
-        directives.insert("media-src".to_string(), "'self'".to_string());
-        directives.insert("frame-src".to_string(), "'self'".to_string());
+pub struct WebIdeCSPHandler;
 
-        directives
+impl WebIdeCSPHandler {
+    pub fn new() -> Self {
+        WebIdeCSPHandler
     }
+}
 
-    /// Get the CSP header value
-    fn csp_header_value(&self) -> String {
-        self.csp_directives()
-            .iter()
-            .map(|(key, value)| format!("{} {}", key, value))
-            .collect::<Vec<String>>()
-            .join("; ")
-    }
+impl WebIdeCSP for WebIdeCSPHandler {
+    fn include_web_ide_csp(&self, req: &HttpRequest) -> Result<(), Box<dyn std::error::Error>> {
+        // Get the current CSP directives from the request
+        let mut csp_directives = req
+            .headers()
+            .get("content-security-policy")
+            .and_then(|h| h.to_str().ok())
+            .map(|h| parse_csp_directives(h))
+            .unwrap_or_default();
 
-    /// Add CSP headers to response
-    fn add_csp_headers(&self, response: &mut HttpResponse) -> Result<(), HttpResponse> {
-        response.headers_mut().insert(
-            "Content-Security-Policy",
-            self.csp_header_value().parse().map_err(|e| {
-                HttpResponse::InternalServerError().json(serde_json::json!({
-                    "error": format!("Failed to parse CSP header: {}", e)
-                }))
-            })?,
-        );
+        if csp_directives.is_empty() {
+            return Ok(());
+        }
+
+        // Build the webpack URL
+        let base_uri = req.uri().to_string();
+        let mut url = Url::parse(&base_uri)?;
+        let relative_url_root =
+            std::env::var("GITLAB_RELATIVE_URL_ROOT").unwrap_or_else(|_| "/".to_string());
+        url.set_path(&format!(
+            "{}/assets/webpack/",
+            relative_url_root.trim_end_matches('/')
+        ));
+        url.set_query(None);
+        let webpack_url = url.to_string();
+
+        // Update frame-src directive
+        let default_src = csp_directives
+            .get("default-src")
+            .cloned()
+            .unwrap_or_default();
+
+        let frame_src = csp_directives
+            .entry("frame-src".to_string())
+            .or_insert_with(Vec::new);
+
+        frame_src.extend(default_src.iter().cloned());
+        frame_src.push(webpack_url.clone());
+        frame_src.push("https://*.web-ide.gitlab-static.net/".to_string());
+
+        // Update worker-src directive
+        let worker_src = csp_directives
+            .entry("worker-src".to_string())
+            .or_insert_with(Vec::new);
+
+        worker_src.extend(default_src);
+        worker_src.push(webpack_url);
+
+        // Set the updated CSP header
+        let csp_header = format_csp_directives(&csp_directives);
+        req.headers_mut()
+            .insert("content-security-policy", csp_header.parse()?);
+
         Ok(())
     }
+}
 
-    /// Get CSP report URI
-    fn csp_report_uri(&self) -> Option<String> {
-        None // Implement based on your needs
-    }
+fn parse_csp_directives(header: &str) -> HashMap<String, Vec<String>> {
+    let mut directives = HashMap::new();
 
-    /// Get CSP report only mode
-    fn csp_report_only(&self) -> bool {
-        false // Implement based on your needs
-    }
-
-    /// Get CSP nonce
-    fn csp_nonce(&self) -> String {
-        use rand::Rng;
-        let mut rng = rand::thread_rng();
-        let nonce: u32 = rng.gen();
-        format!("nonce-{}", nonce)
-    }
-
-    /// Add CSP nonce to directives
-    fn add_csp_nonce(&self, directives: &mut HashMap<String, String>) {
-        let nonce = self.csp_nonce();
-
-        // Add nonce to script-src and style-src
-        if let Some(script_src) = directives.get_mut("script-src") {
-            *script_src = format!("{} '{}'", script_src, nonce);
-        }
-        if let Some(style_src) = directives.get_mut("style-src") {
-            *style_src = format!("{} '{}'", style_src, nonce);
+    for directive in header.split(';') {
+        if let Some((name, values)) = directive.split_once(' ') {
+            let values: Vec<String> = values.split_whitespace().map(|s| s.to_string()).collect();
+            directives.insert(name.to_string(), values);
         }
     }
 
-    /// Get CSP frame ancestors
-    fn csp_frame_ancestors(&self) -> String {
-        "'self'".to_string()
-    }
+    directives
+}
 
-    /// Get CSP base URI
-    fn csp_base_uri(&self) -> String {
-        "'self'".to_string()
-    }
-
-    /// Get CSP form action
-    fn csp_form_action(&self) -> String {
-        "'self'".to_string()
-    }
+fn format_csp_directives(directives: &HashMap<String, Vec<String>>) -> String {
+    directives
+        .iter()
+        .map(|(name, values)| format!("{} {}", name, values.join(" ")))
+        .collect::<Vec<_>>()
+        .join("; ")
 }

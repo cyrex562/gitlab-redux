@@ -1,56 +1,29 @@
-use actix_web::{HttpRequest, HttpResponse};
+use crate::config::Settings;
+use actix_web::{
+    dev::ServiceRequest, error::Error, http::StatusCode, web::Data, HttpResponse, Responder,
+};
 use std::net::IpAddr;
-use std::sync::OnceLock;
-
-pub struct Settings {
-    pub monitoring: MonitoringSettings,
-}
-
-pub struct MonitoringSettings {
-    pub ip_whitelist: Vec<String>,
-}
-
-impl Settings {
-    pub fn get() -> &'static Settings {
-        static INSTANCE: OnceLock<Settings> = OnceLock::new();
-        INSTANCE.get_or_init(|| Settings {
-            monitoring: MonitoringSettings {
-                ip_whitelist: Vec::new(),
-            },
-        })
-    }
-}
-
-pub struct CurrentSettings {
-    pub health_check_access_token: String,
-}
-
-impl CurrentSettings {
-    pub fn get() -> &'static CurrentSettings {
-        static INSTANCE: OnceLock<CurrentSettings> = OnceLock::new();
-        INSTANCE.get_or_init(|| CurrentSettings {
-            health_check_access_token: String::new(),
-        })
-    }
-}
 
 pub trait RequiresAllowlistedMonitoringClient {
-    fn validate_ip_allowlisted_or_valid_token(&self, req: &HttpRequest) -> HttpResponse {
-        if self.client_ip_allowlisted(req) || self.valid_token(req) {
-            HttpResponse::Ok().finish()
-        } else {
-            self.render_404()
-        }
+    fn validate_ip_allowlisted_or_valid_token(&self, req: &ServiceRequest) -> Result<(), Error>;
+}
+
+pub struct RequiresAllowlistedMonitoringClientImpl {
+    settings: Data<Settings>,
+}
+
+impl RequiresAllowlistedMonitoringClientImpl {
+    pub fn new(settings: Data<Settings>) -> Self {
+        Self { settings }
     }
 
-    fn client_ip_allowlisted(&self, req: &HttpRequest) -> bool {
-        // Always allow developers to access http://localhost:3000/-/metrics for
-        // debugging purposes
+    fn client_ip_allowlisted(&self, req: &ServiceRequest) -> bool {
+        // Always allow localhost in development
         if cfg!(debug_assertions)
             && req
                 .connection_info()
                 .peer_addr()
-                .map_or(false, |addr| addr.contains("127.0.0.1"))
+                .map_or(false, |addr| addr == "127.0.0.1")
         {
             return true;
         }
@@ -58,22 +31,25 @@ pub trait RequiresAllowlistedMonitoringClient {
         let client_ip = req
             .connection_info()
             .peer_addr()
-            .and_then(|addr| addr.parse::<IpAddr>().ok())
-            .unwrap_or_else(|| "0.0.0.0".parse().unwrap());
+            .and_then(|addr| addr.parse::<IpAddr>().ok());
 
-        self.ip_allowlist().iter().any(|ip| ip.contains(&client_ip))
+        if let Some(ip) = client_ip {
+            self.settings
+                .monitoring
+                .ip_whitelist
+                .iter()
+                .any(|allowed_ip| {
+                    allowed_ip
+                        .parse::<IpAddr>()
+                        .map(|allowed| allowed == ip)
+                        .unwrap_or(false)
+                })
+        } else {
+            false
+        }
     }
 
-    fn ip_allowlist(&self) -> Vec<IpAddr> {
-        Settings::get()
-            .monitoring
-            .ip_whitelist
-            .iter()
-            .filter_map(|ip| ip.parse().ok())
-            .collect()
-    }
-
-    fn valid_token(&self, req: &HttpRequest) -> bool {
+    fn valid_token(&self, req: &ServiceRequest) -> bool {
         let token = req
             .query_string()
             .split('&')
@@ -86,25 +62,31 @@ pub trait RequiresAllowlistedMonitoringClient {
             return false;
         }
 
-        // Use a constant-time comparison to prevent timing attacks
-        self.constant_time_compare(token, &CurrentSettings::get().health_check_access_token)
-    }
-
-    fn constant_time_compare(&self, a: &str, b: &str) -> bool {
-        if a.len() != b.len() {
+        // Use constant-time comparison for security
+        let expected_token = self.settings.health_check_access_token.as_str();
+        if token.len() != expected_token.len() {
             return false;
         }
 
-        let mut result = 0u8;
-        for (x, y) in a.bytes().zip(b.bytes()) {
-            result |= x ^ y;
-        }
-        result == 0
+        token
+            .bytes()
+            .zip(expected_token.bytes())
+            .all(|(a, b)| a == b)
     }
 
     fn render_404(&self) -> HttpResponse {
         HttpResponse::NotFound()
             .content_type("text/html")
-            .body(include_str!("../../../templates/errors/not_found.html"))
+            .body(include_str!("../../templates/errors/not_found.html"))
+    }
+}
+
+impl RequiresAllowlistedMonitoringClient for RequiresAllowlistedMonitoringClientImpl {
+    fn validate_ip_allowlisted_or_valid_token(&self, req: &ServiceRequest) -> Result<(), Error> {
+        if self.client_ip_allowlisted(req) || self.valid_token(req) {
+            Ok(())
+        } else {
+            Err(actix_web::error::ErrorForbidden("Access denied"))
+        }
     }
 }

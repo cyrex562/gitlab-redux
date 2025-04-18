@@ -1,77 +1,75 @@
-use actix_web::{web, HttpRequest};
-use std::sync::Arc;
-
 use crate::{
-    models::user::User,
-    services::{
-        cloudflare::CloudflareService, correlation::CorrelationService, logging::LoggingService,
+    config::Settings,
+    models::User,
+    utils::{
+        application_context::ApplicationContext, cloudflare::CloudflareHelper,
+        correlation::CorrelationId,
     },
-    utils::{context::ApplicationContext, error::AppError},
 };
+use actix_web::{dev::ServiceRequest, web::Data};
+use serde_json::Value;
+use std::collections::HashMap;
 
-/// Module for handling request payload logging
 pub trait RequestPayloadLogger {
-    /// Append information to payload
-    fn append_info_to_payload(&self, payload: &mut serde_json::Value) -> Result<(), AppError> {
-        // Get request
-        let request = self.request();
+    fn append_info_to_payload(&self, payload: &mut HashMap<String, Value>, req: &ServiceRequest);
+}
 
+pub struct RequestPayloadLoggerImpl {
+    settings: Data<Settings>,
+}
+
+impl RequestPayloadLoggerImpl {
+    pub fn new(settings: Data<Settings>) -> Self {
+        Self { settings }
+    }
+}
+
+impl RequestPayloadLogger for RequestPayloadLoggerImpl {
+    fn append_info_to_payload(&self, payload: &mut HashMap<String, Value>, req: &ServiceRequest) {
         // Add user agent
-        if let Some(user_agent) = request.headers().get("user-agent") {
-            if let Ok(user_agent) = user_agent.to_str() {
-                payload["ua"] = serde_json::Value::String(user_agent.to_string());
+        if let Some(user_agent) = req.headers().get("user-agent") {
+            if let Ok(ua) = user_agent.to_str() {
+                payload.insert("ua".to_string(), Value::String(ua.to_string()));
             }
         }
 
         // Add remote IP
-        if let Some(remote_ip) = request.connection_info().peer_addr() {
-            payload["remote_ip"] = serde_json::Value::String(remote_ip.to_string());
+        if let Some(remote_addr) = req.connection_info().peer_addr() {
+            payload.insert(
+                "remote_ip".to_string(),
+                Value::String(remote_addr.to_string()),
+            );
         }
 
         // Add correlation ID
-        let correlation_id = CorrelationService::current_id();
-        payload[CorrelationService::LOG_KEY] = serde_json::Value::String(correlation_id);
+        payload.insert(
+            "correlation_id".to_string(),
+            Value::String(CorrelationId::current().to_string()),
+        );
 
         // Add application context
-        let context = ApplicationContext::current();
-        payload["metadata"] = serde_json::to_value(context)?;
-
-        // Add urgency if defined
-        if let Some(urgency) = self.urgency() {
-            payload["request_urgency"] = serde_json::Value::String(urgency.name());
-            payload["target_duration_s"] = serde_json::Value::Number(urgency.duration().into());
+        if let Some(ctx) = ApplicationContext::current() {
+            payload.insert(
+                "metadata".to_string(),
+                serde_json::to_value(ctx).unwrap_or(Value::Null),
+            );
         }
 
-        // Add user information
-        if let Some(user) = self.auth_user() {
-            payload["user_id"] = serde_json::Value::Number(user.id().into());
-            payload["username"] = serde_json::Value::String(user.username().to_string());
+        // Add user information if available
+        if let Some(user) = req.extensions().get::<User>() {
+            payload.insert("user_id".to_string(), Value::Number(user.id.into()));
+            payload.insert("username".to_string(), Value::String(user.username.clone()));
         }
 
-        // Add queue duration
-        if let Some(queue_duration) = request
-            .headers()
-            .get("x-gitlab-rails-queue-duration")
-            .and_then(|v| v.to_str().ok())
-            .and_then(|v| v.parse::<f64>().ok())
-        {
-            payload["queue_duration_s"] = serde_json::Value::Number(queue_duration.into());
+        // Add queue duration if available
+        if let Some(duration) = req.extensions().get::<f64>() {
+            payload.insert(
+                "queue_duration_s".to_string(),
+                Value::Number((*duration).into()),
+            );
         }
 
-        // Store Cloudflare headers
-        CloudflareService::store_headers(payload, request);
-
-        Ok(())
+        // Add Cloudflare headers
+        CloudflareHelper::store_headers(payload, req);
     }
-
-    // Required trait methods that need to be implemented by the controller
-    fn request(&self) -> &HttpRequest;
-    fn auth_user(&self) -> Option<&User>;
-    fn urgency(&self) -> Option<&dyn RequestUrgency>;
-}
-
-/// Trait for request urgency
-pub trait RequestUrgency {
-    fn name(&self) -> String;
-    fn duration(&self) -> f64;
 }

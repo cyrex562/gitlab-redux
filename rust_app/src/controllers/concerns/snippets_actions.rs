@@ -1,152 +1,84 @@
+use actix_web::{web, HttpResponse, Responder};
+use serde::Deserialize;
+
+use crate::controllers::concerns::{
+    NoteableMetadata, PaginatedCollection, ProductAnalyticsTracking, RendersBlob, RendersNotes,
+    SnippetsSort,
+};
+use crate::models::blob::Blob;
+use crate::models::discussion::Discussion;
+use crate::models::note::Note;
 use crate::models::snippet::Snippet;
-use crate::models::user::User;
-use actix_web::{web, HttpResponse};
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
-/// Module for handling snippet actions
-pub trait SnippetsActions {
-    /// Get the current user
-    fn current_user(&self) -> Option<&User>;
+pub trait SnippetsActions:
+    RendersNotes
+    + RendersBlob
+    + PaginatedCollection
+    + NoteableMetadata
+    + SnippetsSort
+    + ProductAnalyticsTracking
+{
+    fn snippet(&self) -> &Snippet;
+    fn set_snippet(&mut self, snippet: Snippet);
+    fn is_js_request(&self) -> bool;
+    fn workhorse_set_content_type(&self);
+    fn convert_line_endings(&self, content: &str, line_ending: &str) -> String;
+    fn send_snippet_blob(&self, snippet: &Snippet, blob: &Blob) -> HttpResponse;
+    fn sanitized_file_name(&self, name: &str) -> String;
+    fn content_disposition(&self) -> String;
 
-    /// Get the current snippet
-    fn current_snippet(&self) -> Option<&Snippet>;
-
-    /// Get the current user ID
-    fn user_id(&self) -> Option<i32>;
-
-    /// Get the snippet ID
-    fn snippet_id(&self) -> Option<i32>;
-
-    /// Get the snippet title
-    fn snippet_title(&self) -> Option<String>;
-
-    /// Get the snippet content
-    fn snippet_content(&self) -> Option<String>;
-
-    /// Get the snippet file name
-    fn snippet_file_name(&self) -> Option<String>;
-
-    /// Get the snippet visibility
-    fn snippet_visibility(&self) -> Option<String>;
-
-    /// Create a new snippet
-    async fn create_snippet(&self) -> Result<HashMap<String, String>, HttpResponse> {
-        // TODO: Implement actual snippet creation
-        // This would typically involve:
-        // 1. Validating input data
-        // 2. Creating the snippet record
-        // 3. Setting up file storage
-        // 4. Returning the created snippet data
-        let mut snippet = HashMap::new();
-
-        snippet.insert("id".to_string(), self.snippet_id().unwrap_or(0).to_string());
-        snippet.insert(
-            "title".to_string(),
-            self.snippet_title().unwrap_or_default(),
-        );
-        snippet.insert(
-            "file_name".to_string(),
-            self.snippet_file_name().unwrap_or_default(),
-        );
-        snippet.insert(
-            "visibility".to_string(),
-            self.snippet_visibility().unwrap_or_default(),
-        );
-
-        Ok(snippet)
+    fn edit(&self) -> impl Responder {
+        // In a real implementation, we'd need to handle the view rendering
+        HttpResponse::Ok().finish()
     }
 
-    /// Update an existing snippet
-    async fn update_snippet(&self) -> Result<HashMap<String, String>, HttpResponse> {
-        // TODO: Implement actual snippet update
-        // This would typically involve:
-        // 1. Validating input data
-        // 2. Updating the snippet record
-        // 3. Updating file storage if needed
-        // 4. Returning the updated snippet data
-        let mut snippet = HashMap::new();
+    fn raw(&self) -> impl Responder {
+        self.workhorse_set_content_type();
 
-        snippet.insert("id".to_string(), self.snippet_id().unwrap_or(0).to_string());
-        snippet.insert(
-            "title".to_string(),
-            self.snippet_title().unwrap_or_default(),
-        );
-        snippet.insert(
-            "file_name".to_string(),
-            self.snippet_file_name().unwrap_or_default(),
-        );
-        snippet.insert(
-            "visibility".to_string(),
-            self.snippet_visibility().unwrap_or_default(),
-        );
+        let blob = self.blob();
 
-        Ok(snippet)
+        if let Some(snippet) = blob.snippet() {
+            let data = self.convert_line_endings(&blob.data, "raw");
+            let filename = self.sanitized_file_name(&blob.name);
+
+            HttpResponse::Ok()
+                .content_type("text/plain; charset=utf-8")
+                .header("Content-Disposition", self.content_disposition())
+                .body(data)
+        } else {
+            self.send_snippet_blob(self.snippet(), blob)
+        }
     }
 
-    /// Delete a snippet
-    async fn delete_snippet(&self) -> Result<(), HttpResponse> {
-        // TODO: Implement actual snippet deletion
-        // This would typically involve:
-        // 1. Checking authorization
-        // 2. Deleting the snippet record
-        // 3. Cleaning up file storage
-        Ok(())
+    fn show(&self) -> impl Responder {
+        if self.is_js_request() {
+            if self.snippet().embeddable() {
+                self.conditionally_expand_blobs(self.blobs());
+                // In a real implementation, we'd need to handle the view rendering
+                HttpResponse::Ok().finish()
+            } else {
+                HttpResponse::NotFound().finish()
+            }
+        } else {
+            let note = Note::new(self.snippet(), self.snippet().project());
+            let discussions = self.snippet().discussions();
+            let notes =
+                self.prepare_notes_for_rendering(discussions.iter().flat_map(|d| d.notes()));
+
+            // In a real implementation, we'd need to handle the view rendering
+            HttpResponse::Ok().finish()
+        }
     }
 
-    /// Get snippet data
-    async fn get_snippet_data(&self) -> Result<HashMap<String, String>, HttpResponse> {
-        // TODO: Implement actual snippet data retrieval
-        // This would typically involve:
-        // 1. Checking authorization
-        // 2. Retrieving the snippet record
-        // 3. Getting file content
-        let mut snippet = HashMap::new();
-
-        snippet.insert("id".to_string(), self.snippet_id().unwrap_or(0).to_string());
-        snippet.insert(
-            "title".to_string(),
-            self.snippet_title().unwrap_or_default(),
-        );
-        snippet.insert(
-            "content".to_string(),
-            self.snippet_content().unwrap_or_default(),
-        );
-        snippet.insert(
-            "file_name".to_string(),
-            self.snippet_file_name().unwrap_or_default(),
-        );
-        snippet.insert(
-            "visibility".to_string(),
-            self.snippet_visibility().unwrap_or_default(),
-        );
-
-        Ok(snippet)
+    fn blob(&self) -> &Blob {
+        self.blobs().first().expect("No blobs found")
     }
 
-    /// Check if the user can write to the snippet
-    fn can_write_snippet(&self) -> bool {
-        // This method should be implemented by the SnippetAuthorizations trait
-        false
+    fn blobs(&self) -> Vec<&Blob> {
+        if self.snippet().empty_repo() {
+            vec![self.snippet().blob()]
+        } else {
+            self.snippet().blobs()
+        }
     }
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct SnippetCreateData {
-    pub title: String,
-    pub content: String,
-    pub description: Option<String>,
-    pub visibility: String,
-    pub file_name: Option<String>,
-    pub language: Option<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct SnippetUpdateData {
-    pub title: Option<String>,
-    pub content: Option<String>,
-    pub description: Option<String>,
-    pub visibility: Option<String>,
-    pub file_name: Option<String>,
-    pub language: Option<String>,
 }

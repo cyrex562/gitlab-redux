@@ -1,42 +1,68 @@
-use actix_web::{web, HttpResponse, Responder};
-use serde::{Deserialize, Serialize};
+use actix_web::{web, HttpRequest, HttpResponse, Result};
 use std::sync::Arc;
 
-use crate::models::project::Project;
-use crate::models::subscribable::Subscribable;
+// Define the Project trait
+pub trait Project: Send + Sync {
+    fn id(&self) -> i64;
+    fn name(&self) -> &str;
+}
 
-/// Module for handling toggle subscription action
+// Define the User trait
+pub trait User: Send + Sync {
+    fn id(&self) -> i64;
+    fn name(&self) -> &str;
+}
+
+// Define the Subscribable trait
+pub trait Subscribable: Send + Sync {
+    fn id(&self) -> i64;
+    fn type_name(&self) -> &str;
+    fn toggle_subscription(&self, user: Arc<dyn User>, project: Arc<dyn Project>);
+}
+
 pub trait ToggleSubscriptionAction {
-    /// Get the current user ID
-    fn current_user_id(&self) -> Option<i32>;
-
-    /// Get the subscribable project
-    fn subscribable_project(&self) -> Arc<Project>;
-
-    /// Get the subscribable resource
+    fn toggle_subscription(&self, req: &HttpRequest) -> Result<HttpResponse>;
+    fn subscribable_project(&self) -> Arc<dyn Project>;
     fn subscribable_resource(&self) -> Arc<dyn Subscribable>;
+}
 
-    /// Toggle subscription
-    async fn toggle_subscription(&self) -> impl Responder {
-        if let Some(current_user_id) = self.current_user_id() {
-            let subscribable_resource = self.subscribable_resource();
-            let subscribable_project = self.subscribable_project();
+pub struct ToggleSubscriptionActionHandler {
+    current_user: Option<Arc<dyn User>>,
+}
 
-            match subscribable_resource
-                .toggle_subscription(current_user_id, subscribable_project)
-                .await
-            {
-                Ok(_) => HttpResponse::Ok().finish(),
-                Err(_) => HttpResponse::InternalServerError().finish(),
-            }
-        } else {
-            HttpResponse::Unauthorized().finish()
-        }
+impl ToggleSubscriptionActionHandler {
+    pub fn new(current_user: Option<Arc<dyn User>>) -> Self {
+        ToggleSubscriptionActionHandler { current_user }
     }
 }
 
-/// Trait for resources that can be subscribed to
-pub trait SubscribableResource {
-    /// Toggle subscription for a user on a project
-    fn toggle_subscription(&self, user: &User, project: &Project);
+impl ToggleSubscriptionAction for ToggleSubscriptionActionHandler {
+    fn toggle_subscription(&self, req: &HttpRequest) -> Result<HttpResponse> {
+        // Check if the user is authenticated
+        if let Some(user) = &self.current_user {
+            // Get the subscribable resource and project
+            let resource = self.subscribable_resource();
+            let project = self.subscribable_project();
+
+            // Toggle the subscription
+            resource.toggle_subscription(user.clone(), project);
+
+            // Return a success response
+            Ok(HttpResponse::Ok().finish())
+        } else {
+            // Return a success response even if the user is not authenticated
+            // This matches the Ruby implementation
+            Ok(HttpResponse::Ok().finish())
+        }
+    }
+
+    fn subscribable_project(&self) -> Arc<dyn Project> {
+        // This would be implemented by the concrete class
+        unimplemented!("subscribable_project must be implemented")
+    }
+
+    fn subscribable_resource(&self) -> Arc<dyn Subscribable> {
+        // This would be implemented by the concrete class
+        unimplemented!("subscribable_resource must be implemented")
+    }
 }

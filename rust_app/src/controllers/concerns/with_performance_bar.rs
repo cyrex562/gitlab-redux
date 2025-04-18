@@ -1,128 +1,65 @@
-use actix_web::{web, HttpResponse};
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::time::{Duration, Instant};
+use actix_web::{web, HttpRequest, HttpResponse};
+use lazy_static::lazy_static;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
-/// Module for handling performance bar functionality
+lazy_static! {
+    static ref PEEK_ENABLED: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
+}
+
 pub trait WithPerformanceBar {
-    /// Get the performance bar enabled status
-    fn performance_bar_enabled(&self) -> bool {
-        false // Implement based on your needs
+    fn set_peek_enabled_for_current_request(&self, req: &HttpRequest);
+    fn peek_enabled(&self) -> bool;
+    fn cookie_or_default_value(&self, req: &HttpRequest) -> bool;
+}
+
+pub struct PerformanceBarHandler;
+
+impl PerformanceBarHandler {
+    pub fn new() -> Self {
+        PerformanceBarHandler
+    }
+}
+
+impl WithPerformanceBar for PerformanceBarHandler {
+    fn set_peek_enabled_for_current_request(&self, req: &HttpRequest) {
+        let enabled = self.cookie_or_default_value(req);
+        PEEK_ENABLED.store(enabled, Ordering::SeqCst);
     }
 
-    /// Get the performance bar threshold
-    fn performance_bar_threshold(&self) -> Duration {
-        Duration::from_millis(1000) // Default 1 second threshold
+    fn peek_enabled(&self) -> bool {
+        PEEK_ENABLED.load(Ordering::SeqCst)
     }
 
-    /// Get the performance bar request ID
-    fn performance_bar_request_id(&self) -> Option<String> {
-        None // Implement based on your needs
-    }
+    fn cookie_or_default_value(&self, req: &HttpRequest) -> bool {
+        let is_development =
+            std::env::var("RUST_ENV").unwrap_or_else(|_| "production".to_string()) == "development";
 
-    /// Get the performance bar user ID
-    fn performance_bar_user_id(&self) -> Option<i32> {
-        None // Implement based on your needs
-    }
+        // Get the performance bar cookie
+        let cookie_enabled = req
+            .cookies()
+            .get("perf_bar_enabled")
+            .and_then(|c| c.value().parse::<bool>().ok())
+            .unwrap_or(false);
 
-    /// Get the performance bar data
-    fn performance_bar_data(&self) -> HashMap<String, serde_json::Value> {
-        HashMap::new() // Implement based on your needs
-    }
-
-    /// Check if performance bar should be shown
-    fn should_show_performance_bar(&self, duration: Duration) -> bool {
-        self.performance_bar_enabled() && duration >= self.performance_bar_threshold()
-    }
-
-    /// Add performance bar headers to response
-    fn add_performance_bar_headers(
-        &self,
-        response: &mut HttpResponse,
-        duration: Duration,
-    ) -> Result<(), HttpResponse> {
-        if !self.should_show_performance_bar(duration) {
-            return Ok(());
+        // Set cookie to true in development if not set
+        if is_development && !cookie_enabled {
+            // Note: In a real implementation, you would set the cookie here
+            // This is simplified for the example
+            return true;
         }
 
-        let data = self.performance_bar_data();
-        let request_id = self.performance_bar_request_id();
-        let user_id = self.performance_bar_user_id();
+        // Check if the user is allowed to see the performance bar
+        let user_allowed = self.is_user_allowed(req);
 
-        // Add performance bar headers
-        response.headers_mut().insert(
-            "X-Performance-Bar-Enabled",
-            "true".parse().map_err(|e| {
-                HttpResponse::InternalServerError().json(serde_json::json!({
-                    "error": format!("Failed to parse performance bar header: {}", e)
-                }))
-            })?,
-        );
-
-        if let Some(request_id) = request_id {
-            response.headers_mut().insert(
-                "X-Performance-Bar-Request-ID",
-                request_id.parse().map_err(|e| {
-                    HttpResponse::InternalServerError().json(serde_json::json!({
-                        "error": format!("Failed to parse request ID header: {}", e)
-                    }))
-                })?,
-            );
-        }
-
-        if let Some(user_id) = user_id {
-            response.headers_mut().insert(
-                "X-Performance-Bar-User-ID",
-                user_id.to_string().parse().map_err(|e| {
-                    HttpResponse::InternalServerError().json(serde_json::json!({
-                        "error": format!("Failed to parse user ID header: {}", e)
-                    }))
-                })?,
-            );
-        }
-
-        // Add performance data as JSON
-        response.headers_mut().insert(
-            "X-Performance-Bar-Data",
-            serde_json::to_string(&data)
-                .map_err(|e| {
-                    HttpResponse::InternalServerError().json(serde_json::json!({
-                        "error": format!("Failed to serialize performance data: {}", e)
-                    }))
-                })?
-                .parse()
-                .map_err(|e| {
-                    HttpResponse::InternalServerError().json(serde_json::json!({
-                        "error": format!("Failed to parse performance data header: {}", e)
-                    }))
-                })?,
-        );
-
-        Ok(())
+        cookie_enabled && user_allowed
     }
+}
 
-    /// Measure execution time of a block
-    fn measure_execution_time<F, T>(&self, f: F) -> (T, Duration)
-    where
-        F: FnOnce() -> T,
-    {
-        let start = Instant::now();
-        let result = f();
-        let duration = start.elapsed();
-        (result, duration)
-    }
-
-    /// Execute a block with performance bar
-    fn with_performance_bar<F, T>(&self, f: F) -> Result<T, HttpResponse>
-    where
-        F: FnOnce() -> T,
-    {
-        let (result, duration) = self.measure_execution_time(f);
-
-        // Create a dummy response to add headers
-        let mut response = HttpResponse::Ok();
-        self.add_performance_bar_headers(&mut response, duration)?;
-
-        Ok(result)
+impl PerformanceBarHandler {
+    fn is_user_allowed(&self, req: &HttpRequest) -> bool {
+        // This would be implemented based on your user permission system
+        // For now, we'll return true as a placeholder
+        true
     }
 }

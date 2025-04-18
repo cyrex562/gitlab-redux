@@ -1,94 +1,163 @@
-use actix_web::{web, HttpResponse};
-use std::sync::Arc;
+use crate::models::oauth_application::OAuthApplication;
+use crate::models::user::User;
+use crate::services::oauth_applications::{CreateService, DestroyService, UpdateService};
+use crate::utils::boolean::to_boolean;
+use actix_web::{web, HttpRequest, HttpResponse, Responder};
+use serde::{Deserialize, Serialize};
 
-use crate::{
-    models::{oauth::OAuthApplication, user::User},
-    services::{
-        auth::AuthUtils,
-        oauth::{OAuthConfig, OAuthScopes},
-    },
-    utils::{error::AppError, session::Session},
-};
+#[derive(Debug, Serialize, Deserialize)]
+pub struct OAuthApplicationParams {
+    pub name: String,
+    pub redirect_uri: String,
+    pub scopes: Vec<String>,
+    pub confidential: Option<bool>,
+}
 
-/// Module for handling OAuth applications
-pub trait OauthApplications {
-    /// Session key for created OAuth applications
-    const CREATED_SESSION_KEY: &'static str = "oauth_applications_created";
+pub trait OAuthApplications {
+    fn index(&self, req: HttpRequest) -> impl Responder;
+    fn new(&self, req: HttpRequest) -> impl Responder;
+    fn create(&self, req: HttpRequest) -> impl Responder;
+    fn edit(&self, req: HttpRequest) -> impl Responder;
+    fn update(&self, req: HttpRequest) -> impl Responder;
+    fn destroy(&self, req: HttpRequest) -> impl Responder;
+}
 
-    /// Prepare scopes for OAuth application
-    fn prepare_scopes(&self) -> Result<(), AppError> {
-        let mut params = self.params().clone();
+pub struct OAuthApplicationsImpl {
+    current_user: User,
+    application: Option<OAuthApplication>,
+}
 
-        if let Some(doorkeeper_app) = params.get_mut("doorkeeper_application") {
-            if let Some(scopes) = doorkeeper_app.get_mut("scopes") {
-                if let Some(scopes_vec) = scopes.as_array() {
-                    let scopes_str = scopes_vec
-                        .iter()
-                        .filter_map(|s| s.as_str())
-                        .collect::<Vec<&str>>()
-                        .join(" ");
-
-                    *scopes = serde_json::Value::String(scopes_str);
-                }
-            }
+impl OAuthApplicationsImpl {
+    pub fn new(current_user: User, application: Option<OAuthApplication>) -> Self {
+        Self {
+            current_user,
+            application,
         }
-
-        Ok(())
     }
 
-    /// Set created session
-    fn set_created_session(&self) {
-        self.session().set(Self::CREATED_SESSION_KEY, true);
+    fn applications_path(&self) -> String {
+        format!("/users/{}/oauth/applications", self.current_user.username)
     }
 
-    /// Get created session
-    fn get_created_session(&self) -> bool {
-        self.session()
-            .get::<bool>(Self::CREATED_SESSION_KEY)
-            .unwrap_or(false)
+    fn application_path(&self, application: &OAuthApplication) -> String {
+        format!("/oauth/applications/{}", application.id)
     }
 
-    /// Load scopes
-    fn load_scopes(&self) -> OAuthScopes {
-        let config = OAuthConfig::default();
-        let mut scopes = config.scopes();
-
-        // Remove restricted scopes
-        scopes.retain(|scope| {
-            !matches!(
-                scope.as_str(),
-                "ai_workflow" | "dynamic_user" | "self_rotate"
-            )
-        });
-
-        OAuthScopes::from_vec(scopes)
+    fn edit_application_path(&self, application: &OAuthApplication) -> String {
+        format!("/oauth/applications/{}/edit", application.id)
     }
 
-    /// Get permitted parameters
-    fn permitted_params(&self) -> Vec<&'static str> {
-        vec!["name", "redirect_uri", "scopes", "confidential"]
+    fn render_form(&self, application: Option<&OAuthApplication>) -> String {
+        // Implementation depends on your template engine
+        // This is a placeholder that should be replaced with actual template rendering
+        format!("Rendered form for application: {:?}", application)
+    }
+}
+
+impl OAuthApplications for OAuthApplicationsImpl {
+    fn index(&self, _req: HttpRequest) -> impl Responder {
+        let applications = self.current_user.oauth_applications();
+        HttpResponse::Ok().json(serde_json::json!({
+            "applications": applications.iter().map(|app| {
+                serde_json::json!({
+                    "id": app.id,
+                    "name": app.name,
+                    "redirect_uri": app.redirect_uri,
+                    "scopes": app.scopes,
+                    "confidential": app.confidential,
+                    "created_at": app.created_at,
+                    "updated_at": app.updated_at
+                })
+            }).collect::<Vec<_>>()
+        }))
     }
 
-    /// Get application parameters
-    fn application_params(&self) -> Result<serde_json::Value, AppError> {
-        let params = self.params();
-        let doorkeeper_app = params.get("doorkeeper_application").ok_or_else(|| {
-            AppError::BadRequest("Missing doorkeeper_application parameter".to_string())
-        })?;
+    fn new(&self, _req: HttpRequest) -> impl Responder {
+        HttpResponse::Ok().json(serde_json::json!({
+            "html": self.render_form(None)
+        }))
+    }
 
-        let mut permitted = serde_json::Map::new();
+    fn create(&self, req: HttpRequest) -> impl Responder {
+        let params = web::Json::<OAuthApplicationParams>::from_request(&req)
+            .map_err(|_| HttpResponse::BadRequest())?;
 
-        for param in self.permitted_params() {
-            if let Some(value) = doorkeeper_app.get(param) {
-                permitted.insert(param.to_string(), value.clone());
-            }
+        let application = CreateService::new(&self.current_user, &params.0).execute();
+
+        if application.has_errors() {
+            HttpResponse::UnprocessableEntity().json(serde_json::json!({
+                "errors": application.errors().join(", ")
+            }))
+        } else {
+            HttpResponse::Created()
+                .header("Location", self.application_path(&application))
+                .json(serde_json::json!({
+                    "application": serde_json::json!({
+                        "id": application.id,
+                        "name": application.name,
+                        "redirect_uri": application.redirect_uri,
+                        "scopes": application.scopes,
+                        "confidential": application.confidential,
+                        "created_at": application.created_at,
+                        "updated_at": application.updated_at
+                    })
+                }))
         }
-
-        Ok(serde_json::Value::Object(permitted))
     }
 
-    // Required trait methods that need to be implemented by the controller
-    fn current_user(&self) -> Option<&User>;
-    fn params(&self) -> &serde_json::Value;
-    fn session(&self) -> &dyn Session;
+    fn edit(&self, req: HttpRequest) -> impl Responder {
+        let application = self
+            .application
+            .as_ref()
+            .ok_or_else(|| HttpResponse::NotFound())?;
+
+        HttpResponse::Ok().json(serde_json::json!({
+            "html": self.render_form(Some(application))
+        }))
+    }
+
+    fn update(&self, req: HttpRequest) -> impl Responder {
+        let application = self
+            .application
+            .as_ref()
+            .ok_or_else(|| HttpResponse::NotFound())?;
+
+        let params = web::Json::<OAuthApplicationParams>::from_request(&req)
+            .map_err(|_| HttpResponse::BadRequest())?;
+
+        let application = UpdateService::new(&self.current_user, &params.0).execute(application);
+
+        if application.has_errors() {
+            HttpResponse::UnprocessableEntity().json(serde_json::json!({
+                "errors": application.errors().join(", ")
+            }))
+        } else {
+            HttpResponse::Ok().json(serde_json::json!({
+                "application": serde_json::json!({
+                    "id": application.id,
+                    "name": application.name,
+                    "redirect_uri": application.redirect_uri,
+                    "scopes": application.scopes,
+                    "confidential": application.confidential,
+                    "created_at": application.created_at,
+                    "updated_at": application.updated_at
+                })
+            }))
+        }
+    }
+
+    fn destroy(&self, req: HttpRequest) -> impl Responder {
+        let application = self
+            .application
+            .as_ref()
+            .ok_or_else(|| HttpResponse::NotFound())?;
+
+        DestroyService::new(&self.current_user).execute(application);
+
+        HttpResponse::SeeOther()
+            .header("Location", self.applications_path())
+            .json(serde_json::json!({
+                "notice": "Application was successfully deleted."
+            }))
+    }
 }

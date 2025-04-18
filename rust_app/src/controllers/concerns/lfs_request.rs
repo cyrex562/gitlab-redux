@@ -1,167 +1,283 @@
-use actix_web::{web, HttpResponse};
+use crate::config::GitlabConfig;
+use crate::models::deploy_token::DeployToken;
+use crate::models::project::Project;
+use crate::models::user::User;
+use crate::utils::strong_memoize::StrongMemoize;
+use actix_web::{web, HttpRequest, HttpResponse, Responder};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-/// Module for handling LFS requests
+pub const CONTENT_TYPE: &str = "application/vnd.git-lfs+json";
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct LfsObject {
+    pub oid: String,
+    #[serde(flatten)]
+    pub extra: HashMap<String, String>,
+}
+
 pub trait LfsRequest {
-    /// Get the request operation
-    fn operation(&self) -> String;
+    fn container(&self) -> Option<&dyn LfsContainer>;
+    fn project(&self) -> &Project;
+    fn user(&self) -> Option<&User>;
+    fn deploy_token(&self) -> Option<&DeployToken>;
+    fn authentication_result(&self) -> &AuthenticationResult;
+    fn can(&self, object: &dyn std::any::Any, action: &str, subject: &dyn std::any::Any) -> bool;
+    fn is_ci(&self) -> bool;
+    fn is_download_request(&self) -> bool;
+    fn is_upload_request(&self) -> bool;
+    fn has_authentication_ability(&self, ability: &str) -> bool;
+    fn objects(&self) -> Vec<LfsObject>;
+    fn objects_oids(&self) -> Vec<String>;
+    fn limit_exceeded(&self) -> bool;
+}
 
-    /// Get the request objects
-    fn objects(&self) -> Vec<HashMap<String, String>>;
+pub trait LfsContainer {
+    fn lfs_enabled(&self) -> bool;
+}
 
-    /// Get the request hash
-    fn hash(&self) -> String;
+pub struct AuthenticationResult {
+    pub abilities: Vec<String>,
+}
 
-    /// Get the request size
-    fn size(&self) -> i64;
-
-    /// Get the request project ID
-    fn project_id(&self) -> i32;
-
-    /// Get the request user ID
-    fn user_id(&self) -> i32;
-
-    /// Get the request ref name
-    fn ref_name(&self) -> Option<String> {
-        None
+impl AuthenticationResult {
+    pub fn lfs_deploy_token(&self, project: &Project) -> bool {
+        // Implementation depends on your authentication logic
+        false
     }
+}
 
-    /// Get the request ref type
-    fn ref_type(&self) -> Option<String> {
-        None
-    }
+pub struct LfsRequestImpl {
+    container: Option<Box<dyn LfsContainer>>,
+    project: Project,
+    user: Option<User>,
+    deploy_token: Option<DeployToken>,
+    authentication_result: AuthenticationResult,
+    config: GitlabConfig,
+    objects: Vec<LfsObject>,
+}
 
-    /// Get the request ref value
-    fn ref_value(&self) -> Option<String> {
-        None
-    }
-
-    /// Validate request operation
-    fn validate_operation(&self) -> Result<(), HttpResponse> {
-        let operation = self.operation();
-        if !["upload", "download", "verify", "delete"].contains(&operation.as_str()) {
-            return Err(HttpResponse::BadRequest().json(serde_json::json!({
-                "error": format!("Invalid operation: {}", operation)
-            })));
+impl LfsRequestImpl {
+    pub fn new(
+        container: Option<Box<dyn LfsContainer>>,
+        project: Project,
+        user: Option<User>,
+        deploy_token: Option<DeployToken>,
+        authentication_result: AuthenticationResult,
+        config: GitlabConfig,
+        objects: Vec<LfsObject>,
+    ) -> Self {
+        Self {
+            container,
+            project,
+            user,
+            deploy_token,
+            authentication_result,
+            config,
+            objects,
         }
-        Ok(())
     }
 
-    /// Validate request objects
-    fn validate_objects(&self) -> Result<(), HttpResponse> {
-        if self.objects().is_empty() {
-            return Err(HttpResponse::BadRequest().json(serde_json::json!({
-                "error": "Objects cannot be empty"
-            })));
+    pub fn require_lfs_enabled(&self) -> impl Responder {
+        if !self.config.lfs.enabled {
+            return HttpResponse::NotImplemented()
+                .content_type(CONTENT_TYPE)
+                .json(serde_json::json!({
+                    "message": "Git LFS is not enabled on this GitLab server, contact your admin.",
+                    "documentation_url": self.help_url()
+                }));
         }
+        HttpResponse::Ok()
+    }
 
-        for object in &self.objects() {
-            if !object.contains_key("oid") {
-                return Err(HttpResponse::BadRequest().json(serde_json::json!({
-                    "error": "Object must contain oid"
-                })));
+    pub fn lfs_check_access(&self) -> impl Responder {
+        if let Some(container) = &self.container {
+            if !container.lfs_enabled() {
+                return self.render_lfs_not_found();
             }
-
-            if !object.contains_key("size") {
-                return Err(HttpResponse::BadRequest().json(serde_json::json!({
-                    "error": "Object must contain size"
-                })));
-            }
         }
 
-        Ok(())
+        if self.is_download_request() && self.lfs_download_access() {
+            return HttpResponse::Ok();
+        }
+
+        if self.is_upload_request() && self.lfs_upload_access() {
+            return HttpResponse::Ok();
+        }
+
+        if self.lfs_download_access() {
+            self.lfs_forbidden()
+        } else {
+            self.render_lfs_not_found()
+        }
     }
 
-    /// Process LFS request
-    fn process_lfs_request(&self) -> Result<HashMap<String, serde_json::Value>, HttpResponse> {
-        self.validate_operation()?;
-        self.validate_objects()?;
-
-        let mut response = HashMap::new();
-        let mut objects = Vec::new();
-
-        for object in &self.objects() {
-            let mut object_response = HashMap::new();
-            object_response.insert("oid".to_string(), serde_json::json!(object["oid"]));
-            object_response.insert("size".to_string(), serde_json::json!(object["size"]));
-
-            match self.operation().as_str() {
-                "upload" => {
-                    // TODO: Implement upload logic
-                    // This would typically involve:
-                    // 1. Generating a signed URL for upload
-                    // 2. Setting appropriate headers
-                    // 3. Handling authentication
-                    object_response.insert("authenticated".to_string(), serde_json::json!(true));
-                    object_response.insert(
-                        "href".to_string(),
-                        serde_json::json!("https://example.com/upload"),
-                    );
-                }
-                "download" => {
-                    // TODO: Implement download logic
-                    // This would typically involve:
-                    // 1. Generating a signed URL for download
-                    // 2. Setting appropriate headers
-                    // 3. Handling authentication
-                    object_response.insert("authenticated".to_string(), serde_json::json!(true));
-                    object_response.insert(
-                        "href".to_string(),
-                        serde_json::json!("https://example.com/download"),
-                    );
-                }
-                "verify" => {
-                    // TODO: Implement verify logic
-                    // This would typically involve:
-                    // 1. Checking if the object exists
-                    // 2. Verifying the object size
-                    // 3. Handling authentication
-                    object_response.insert("authenticated".to_string(), serde_json::json!(true));
-                }
-                "delete" => {
-                    // TODO: Implement delete logic
-                    // This would typically involve:
-                    // 1. Checking if the object exists
-                    // 2. Deleting the object
-                    // 3. Handling authentication
-                    object_response.insert("authenticated".to_string(), serde_json::json!(true));
-                }
-                _ => unreachable!(),
-            }
-
-            objects.push(serde_json::Value::Object(serde_json::Map::from_iter(
-                object_response.into_iter().map(|(k, v)| (k, v)),
-            )));
-        }
-
-        response.insert("objects".to_string(), serde_json::json!(objects));
-        Ok(response)
+    fn lfs_forbidden(&self) -> impl Responder {
+        HttpResponse::Forbidden()
+            .content_type(CONTENT_TYPE)
+            .json(serde_json::json!({
+                "message": "Access forbidden. Check your access level.",
+                "documentation_url": self.help_url()
+            }))
     }
 
-    /// Get request metadata
-    fn get_request_metadata(&self) -> Result<HashMap<String, serde_json::Value>, HttpResponse> {
-        let mut metadata = HashMap::new();
+    fn render_lfs_not_found(&self) -> impl Responder {
+        HttpResponse::NotFound()
+            .content_type(CONTENT_TYPE)
+            .json(serde_json::json!({
+                "message": "Not found.",
+                "documentation_url": self.help_url()
+            }))
+    }
 
-        metadata.insert("operation".to_string(), serde_json::json!(self.operation()));
-        metadata.insert(
-            "project_id".to_string(),
-            serde_json::json!(self.project_id()),
-        );
-        metadata.insert("user_id".to_string(), serde_json::json!(self.user_id()));
+    fn help_url(&self) -> String {
+        // Implementation depends on your help URL structure
+        "https://docs.gitlab.com/ee/topics/git/lfs/".to_string()
+    }
+}
 
-        if let Some(ref_name) = self.ref_name() {
-            metadata.insert("ref_name".to_string(), serde_json::json!(ref_name));
+impl LfsRequest for LfsRequestImpl {
+    fn container(&self) -> Option<&dyn LfsContainer> {
+        self.container.as_ref().map(|c| c.as_ref())
+    }
+
+    fn project(&self) -> &Project {
+        &self.project
+    }
+
+    fn user(&self) -> Option<&User> {
+        self.user.as_ref()
+    }
+
+    fn deploy_token(&self) -> Option<&DeployToken> {
+        self.deploy_token.as_ref()
+    }
+
+    fn authentication_result(&self) -> &AuthenticationResult {
+        &self.authentication_result
+    }
+
+    fn can(&self, object: &dyn std::any::Any, action: &str, subject: &dyn std::any::Any) -> bool {
+        // Implementation depends on your permission system
+        false
+    }
+
+    fn is_ci(&self) -> bool {
+        // Implementation depends on your CI detection logic
+        false
+    }
+
+    fn is_download_request(&self) -> bool {
+        // Implementation depends on your request type detection
+        false
+    }
+
+    fn is_upload_request(&self) -> bool {
+        // Implementation depends on your request type detection
+        false
+    }
+
+    fn has_authentication_ability(&self, ability: &str) -> bool {
+        self.authentication_result
+            .abilities
+            .contains(&ability.to_string())
+    }
+
+    fn objects(&self) -> Vec<LfsObject> {
+        self.objects.clone()
+    }
+
+    fn objects_oids(&self) -> Vec<String> {
+        self.objects.iter().map(|o| o.oid.clone()).collect()
+    }
+
+    fn limit_exceeded(&self) -> bool {
+        // Default implementation, can be overridden in EE
+        false
+    }
+}
+
+impl LfsRequestImpl {
+    fn lfs_download_access(&self) -> bool {
+        self.is_ci()
+            || self.lfs_deploy_token()
+            || self.user_can_download_code()
+            || self.build_can_download_code()
+            || self.deploy_token_can_download_code()
+    }
+
+    fn deploy_token_can_download_code(&self) -> bool {
+        if let Some(token) = &self.deploy_token {
+            token.has_access_to(&self.project) && token.read_repository()
+        } else {
+            false
+        }
+    }
+
+    fn lfs_upload_access(&self) -> bool {
+        if !self.has_authentication_ability("push_code") {
+            return false;
+        }
+        if self.limit_exceeded() {
+            return false;
         }
 
-        if let Some(ref_type) = self.ref_type() {
-            metadata.insert("ref_type".to_string(), serde_json::json!(ref_type));
-        }
+        self.lfs_deploy_token()
+            || self.can(
+                self.user
+                    .as_ref()
+                    .map(|u| u as &dyn std::any::Any)
+                    .unwrap_or(&()),
+                "push_code",
+                &self.project,
+            )
+            || self.can(
+                self.deploy_token
+                    .as_ref()
+                    .map(|t| t as &dyn std::any::Any)
+                    .unwrap_or(&()),
+                "push_code",
+                &self.project,
+            )
+            || self.any_branch_allows_collaboration()
+    }
 
-        if let Some(ref_value) = self.ref_value() {
-            metadata.insert("ref_value".to_string(), serde_json::json!(ref_value));
+    fn any_branch_allows_collaboration(&self) -> bool {
+        if let Some(user) = &self.user {
+            !self
+                .project
+                .merge_requests_allowing_push_to_user(user)
+                .is_empty()
+        } else {
+            false
         }
+    }
 
-        Ok(metadata)
+    fn lfs_deploy_token(&self) -> bool {
+        self.authentication_result.lfs_deploy_token(&self.project)
+    }
+
+    fn user_can_download_code(&self) -> bool {
+        self.has_authentication_ability("download_code")
+            && self.can(
+                self.user
+                    .as_ref()
+                    .map(|u| u as &dyn std::any::Any)
+                    .unwrap_or(&()),
+                "download_code",
+                &self.project,
+            )
+    }
+
+    fn build_can_download_code(&self) -> bool {
+        self.has_authentication_ability("build_download_code")
+            && self.can(
+                self.user
+                    .as_ref()
+                    .map(|u| u as &dyn std::any::Any)
+                    .unwrap_or(&()),
+                "build_download_code",
+                &self.project,
+            )
     }
 }

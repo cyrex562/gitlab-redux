@@ -1,65 +1,58 @@
-use actix_web::{HttpRequest, HttpResponse};
-use chrono::NaiveDate;
-use icalendar::{Calendar, Component, Event};
+use actix_web::{web, HttpRequest, HttpResponse};
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
+
+/// This trait provides functionality for rendering access tokens in controllers
+pub trait RenderAccessTokens {
+    /// Render access tokens for the current request
+    fn render_access_tokens(&self, req: &HttpRequest) -> HttpResponse;
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AccessToken {
-    pub name: String,
-    pub expires_at: String,
-    // Add other fields as needed
+    id: i32,
+    name: String,
+    scopes: Vec<String>,
+    expires_at: Option<String>,
+    created_at: String,
 }
 
-pub trait RenderAccessTokens {
-    fn active_access_tokens(&self, req: &HttpRequest) -> (Vec<AccessToken>, usize) {
-        let page = self.page(req);
-        let tokens = self.find_tokens("active", "expires_asc");
-        let size = tokens.len();
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RenderAccessTokensHandler {
+    current_user: Option<Arc<User>>,
+}
 
-        let paginated_tokens = self.paginate_tokens(tokens, page);
-        self.add_pagination_headers(req, &paginated_tokens);
-
-        (paginated_tokens, size)
+impl RenderAccessTokensHandler {
+    pub fn new(current_user: Option<Arc<User>>) -> Self {
+        RenderAccessTokensHandler { current_user }
     }
 
-    fn inactive_access_tokens(&self) -> Vec<AccessToken> {
-        self.find_tokens("inactive", "updated_at_desc")
+    fn fetch_access_tokens(&self) -> Vec<AccessToken> {
+        // This would be implemented to fetch access tokens from the database
+        // For now, we'll return an empty vector
+        Vec::new()
     }
+}
 
-    fn add_pagination_headers(&self, req: &HttpRequest, tokens: &[AccessToken]) {
-        // Implementation would depend on your pagination system
-        // This is a placeholder for the pagination header logic
-    }
-
-    fn page(&self, req: &HttpRequest) -> i32 {
-        // Extract page from query parameters, default to 1
-        req.query_string()
-            .split('&')
-            .find(|param| param.starts_with("page="))
-            .and_then(|param| param.split('=').nth(1))
-            .and_then(|page| page.parse().ok())
-            .unwrap_or(1)
-    }
-
-    fn expiry_ics(&self, tokens: &[AccessToken]) -> String {
-        let mut cal = Calendar::new();
-
-        for token in tokens {
-            let mut event = Event::new();
-
-            // Parse the date string and create an event
-            if let Ok(date) = NaiveDate::parse_from_str(&token.expires_at, "%Y-%m-%d") {
-                event.summary(&format!("Token {} expires today", token.name));
-                event.dtstart(date);
-                event.dtend(date);
-                cal.push(event);
-            }
+impl RenderAccessTokens for RenderAccessTokensHandler {
+    fn render_access_tokens(&self, req: &HttpRequest) -> HttpResponse {
+        // Check if user is authenticated
+        if self.current_user.is_none() {
+            return HttpResponse::Unauthorized().finish();
         }
 
-        cal.to_string()
-    }
+        // Fetch access tokens
+        let tokens = self.fetch_access_tokens();
 
-    // Required methods to be implemented by concrete types
-    fn find_tokens(&self, state: &str, sort: &str) -> Vec<AccessToken>;
-    fn paginate_tokens(&self, tokens: Vec<AccessToken>, page: i32) -> Vec<AccessToken>;
+        // Render tokens as JSON
+        HttpResponse::Ok()
+            .content_type("application/json")
+            .json(tokens)
+    }
+}
+
+// This would be implemented in a separate module
+pub struct User {
+    id: i32,
+    // Add other fields as needed
 }

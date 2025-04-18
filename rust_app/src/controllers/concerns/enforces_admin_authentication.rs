@@ -1,84 +1,166 @@
-use actix_web::{web, HttpRequest, HttpResponse};
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::config::settings::Settings;
-use crate::models::user::User;
-use crate::utils::session::Session;
-
-/// Module for enforcing admin authentication
-pub trait EnforcesAdminAuthentication {
-    /// Authenticate that the current user is an admin
-    fn authenticate_admin(&self, req: &HttpRequest) -> HttpResponse {
-        // Check if user is logged in and is an admin
-        if let Some(current_user) = self.current_user() {
-            if !current_user.is_admin() {
-                return HttpResponse::NotFound().finish();
-            }
-
-            // Check if admin mode is enabled in settings
-            if self.settings().admin_mode_enabled() {
-                // Check if user is in admin mode
-                if !self.current_user_mode().is_admin_mode() {
-                    // Request admin mode
-                    self.current_user_mode().request_admin_mode();
-
-                    // Store the current location for redirect after admin mode is enabled
-                    if self.storable_location(req) {
-                        self.store_location_for_redirect(req.uri().path());
-                    }
-
-                    // Redirect to admin session page
-                    return HttpResponse::Found()
-                        .header("Location", "/admin/session/new")
-                        .header("X-Flash-Notice", "Re-authentication required")
-                        .finish();
-                }
-            }
-
-            return HttpResponse::Ok().finish();
-        }
-
-        HttpResponse::NotFound().finish()
-    }
-
-    /// Check if the current location can be stored for redirect
-    fn storable_location(&self, req: &HttpRequest) -> bool {
-        req.path() != "/admin/session/new"
-    }
-
-    /// Store the current location for redirect
-    fn store_location_for_redirect(&self, path: &str) {
-        self.session().insert("redirect", path);
-    }
-
-    /// Authorize a specific ability
-    fn authorize_ability(&self, ability: &str) -> HttpResponse {
-        if let Some(current_user) = self.current_user() {
-            if current_user.is_admin() {
-                return self.authenticate_admin(self.request());
-            }
-
-            if !current_user.can(ability) {
-                return HttpResponse::NotFound().finish();
-            }
-        }
-
-        HttpResponse::Ok().finish()
-    }
-
-    // Required trait methods that need to be implemented by the controller
-    fn current_user(&self) -> Option<Arc<User>>;
-    fn current_user_mode(&self) -> &dyn UserMode;
-    fn settings(&self) -> Arc<Settings>;
-    fn session(&self) -> &Session;
-    fn request(&self) -> &HttpRequest;
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct User {
+    pub id: i64,
+    pub name: String,
+    pub admin: bool,
 }
 
-/// Trait for user mode functionality
-pub trait UserMode {
-    /// Check if the user is in admin mode
-    fn is_admin_mode(&self) -> bool;
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserMode {
+    pub admin_mode: bool,
+}
 
-    /// Request admin mode
-    fn request_admin_mode(&self);
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Settings {
+    pub admin_mode: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Response {
+    pub status: u16,
+    pub body: String,
+    pub headers: HashMap<String, String>,
+    pub redirect: Option<String>,
+}
+
+pub trait EnforcesAdminAuthentication {
+    fn authenticate_admin(
+        &self,
+        current_user: &User,
+        current_user_mode: &UserMode,
+        settings: &Settings,
+        request_path: &str,
+    ) -> Result<Response, String>;
+    fn authorize_ability(&self, current_user: &User, ability: &str) -> Result<Response, String>;
+}
+
+pub struct EnforcesAdminAuthenticationHandler;
+
+impl EnforcesAdminAuthenticationHandler {
+    pub fn new() -> Self {
+        Self
+    }
+
+    fn render_404(&self) -> Response {
+        let mut headers = HashMap::new();
+        headers.insert("Content-Type".to_string(), "text/plain".to_string());
+
+        Response {
+            status: 404,
+            body: "Not Found".to_string(),
+            headers,
+            redirect: None,
+        }
+    }
+
+    fn storable_location(&self, request_path: &str) -> bool {
+        request_path != "/admin/session/new"
+    }
+}
+
+impl EnforcesAdminAuthentication for EnforcesAdminAuthenticationHandler {
+    fn authenticate_admin(
+        &self,
+        current_user: &User,
+        current_user_mode: &UserMode,
+        settings: &Settings,
+        request_path: &str,
+    ) -> Result<Response, String> {
+        if !current_user.admin {
+            return Ok(self.render_404());
+        }
+
+        if !settings.admin_mode {
+            return Ok(Response {
+                status: 200,
+                body: "".to_string(),
+                headers: HashMap::new(),
+                redirect: None,
+            });
+        }
+
+        if !current_user_mode.admin_mode {
+            // In a real implementation, this would request admin mode
+            let mut headers = HashMap::new();
+            headers.insert("Content-Type".to_string(), "text/html".to_string());
+
+            let redirect_path = if self.storable_location(request_path) {
+                Some("/admin/session/new".to_string())
+            } else {
+                None
+            };
+
+            return Ok(Response {
+                status: 302,
+                body: "Re-authentication required".to_string(),
+                headers,
+                redirect: redirect_path,
+            });
+        }
+
+        Ok(Response {
+            status: 200,
+            body: "".to_string(),
+            headers: HashMap::new(),
+            redirect: None,
+        })
+    }
+
+    fn authorize_ability(&self, current_user: &User, ability: &str) -> Result<Response, String> {
+        if current_user.admin {
+            // In a real implementation, this would call authenticate_admin
+            return Ok(Response {
+                status: 200,
+                body: "".to_string(),
+                headers: HashMap::new(),
+                redirect: None,
+            });
+        }
+
+        // In a real implementation, this would check if the user can perform the ability
+        // For now, we'll just return 404
+        Ok(self.render_404())
+    }
+}
+
+// Example of how to use this in a controller
+pub struct AdminController {
+    auth_handler: Arc<EnforcesAdminAuthenticationHandler>,
+    current_user: Arc<User>,
+    current_user_mode: Arc<UserMode>,
+    settings: Arc<Settings>,
+}
+
+impl AdminController {
+    pub fn new(
+        auth_handler: Arc<EnforcesAdminAuthenticationHandler>,
+        current_user: Arc<User>,
+        current_user_mode: Arc<UserMode>,
+        settings: Arc<Settings>,
+    ) -> Self {
+        Self {
+            auth_handler,
+            current_user,
+            current_user_mode,
+            settings,
+        }
+    }
+
+    pub fn before_action(&self, request_path: &str) -> Result<Response, String> {
+        self.auth_handler.authenticate_admin(
+            &self.current_user,
+            &self.current_user_mode,
+            &self.settings,
+            request_path,
+        )
+    }
+
+    pub fn authorize(&self, ability: &str) -> Result<Response, String> {
+        self.auth_handler
+            .authorize_ability(&self.current_user, ability)
+    }
 }

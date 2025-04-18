@@ -1,84 +1,68 @@
-use std::collections::HashMap;
+use actix_web::{web, HttpRequest, HttpResponse};
+use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
-pub struct Commit {
-    pub author: Option<String>,
-    pub pipeline: Option<String>,
-    // Add other commit fields as needed
-}
-
-pub struct MergeRequestDiff {
-    pub const COMMITS_SAFE_SIZE: usize = 1000;
-}
-
-pub struct CommitRenderer;
-
-impl CommitRenderer {
-    pub fn render(commits: &[Commit], project: &Project, user: &User) {
-        // Implementation for rendering commits
-    }
-}
-
-pub struct Project {
-    // Add project fields as needed
-}
-
-pub struct User {
-    // Add user fields as needed
-}
-
+/// This trait provides functionality for rendering commits in controllers
 pub trait RendersCommits {
-    fn limited_commits(&self, commits: &[Commit], commits_count: usize) -> (Vec<Commit>, usize) {
-        if commits_count > MergeRequestDiff::COMMITS_SAFE_SIZE {
-            (
-                commits[..MergeRequestDiff::COMMITS_SAFE_SIZE].to_vec(),
-                commits_count - MergeRequestDiff::COMMITS_SAFE_SIZE,
-            )
-        } else {
-            (commits.to_vec(), 0)
-        }
-    }
-
-    fn set_commits_for_rendering(&mut self, commits: &[Commit], commits_count: Option<usize>) -> (Vec<Commit>, usize) {
-        let total_commit_count = commits_count.unwrap_or(commits.len());
-        let (limited, hidden_commit_count) = self.limited_commits(commits, total_commit_count);
-        let prepared_commits = self.prepare_commits_for_rendering(&limited);
-        (prepared_commits, hidden_commit_count)
-    }
-
-    fn prepare_commits_for_rendering(&self, commits: &[Commit]) -> Vec<Commit> {
-        let mut prepared_commits = commits.to_vec();
-        
-        // Preload commits' authors and pipelines
-        for commit in &mut prepared_commits {
-            commit.lazy_author();
-            commit.lazy_latest_pipeline();
-        }
-
-        // Render commits
-        CommitRenderer::render(&prepared_commits, self.get_project(), self.get_current_user());
-
-        prepared_commits
-    }
-
-    fn valid_ref(&self, ref_name: Option<&str>) -> bool {
-        match ref_name {
-            Some(name) => self.validate_git_ref(name),
-            None => true,
-        }
-    }
-
-    // Required methods to be implemented by concrete types
-    fn get_project(&self) -> &Project;
-    fn get_current_user(&self) -> &User;
-    fn validate_git_ref(&self, ref_name: &str) -> bool;
+    /// Render commits for the current request
+    fn render_commits(&self, req: &HttpRequest) -> HttpResponse;
 }
 
-impl Commit {
-    pub fn lazy_author(&mut self) {
-        // Implementation for lazy loading author
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Commit {
+    id: String,
+    title: String,
+    message: String,
+    author_name: String,
+    author_email: String,
+    authored_date: String,
+    committed_date: String,
+    created_at: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RendersCommitsHandler {
+    current_user: Option<Arc<User>>,
+}
+
+impl RendersCommitsHandler {
+    pub fn new(current_user: Option<Arc<User>>) -> Self {
+        RendersCommitsHandler { current_user }
     }
 
-    pub fn lazy_latest_pipeline(&mut self) {
-        // Implementation for lazy loading pipeline
+    fn fetch_commits(&self, ref_name: &str) -> Vec<Commit> {
+        // This would be implemented to fetch commits from the database
+        // For now, we'll return an empty vector
+        Vec::new()
     }
-} 
+}
+
+impl RendersCommits for RendersCommitsHandler {
+    fn render_commits(&self, req: &HttpRequest) -> HttpResponse {
+        // Check if user is authenticated
+        if self.current_user.is_none() {
+            return HttpResponse::Unauthorized().finish();
+        }
+
+        // Get ref name from request
+        let ref_name = req
+            .match_info()
+            .get("ref")
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| "master".to_string());
+
+        // Fetch commits
+        let commits = self.fetch_commits(&ref_name);
+
+        // Render commits as JSON
+        HttpResponse::Ok()
+            .content_type("application/json")
+            .json(commits)
+    }
+}
+
+// This would be implemented in a separate module
+pub struct User {
+    id: i32,
+    // Add other fields as needed
+}

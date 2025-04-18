@@ -1,129 +1,120 @@
-use crate::config::settings::Settings;
-use actix_web::{web, HttpResponse};
+use actix_web::{web, HttpResponse, Responder};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::path::PathBuf;
-use tokio::fs;
+use crate::ci::runner_instructions::RunnerInstructions;
 
-/// Module for managing runner setup scripts
+#[derive(Debug, Deserialize)]
+pub struct ScriptParams {
+    pub os: Option<String>,
+    pub arch: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct RunnerSetupOutput {
+    pub install: String,
+    pub register: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct RunnerSetupError {
+    pub errors: Vec<String>,
+}
+
 pub trait RunnerSetupScripts {
-    /// Get the runner installation path
-    fn installation_path(&self) -> PathBuf;
+    fn private_runner_setup_scripts(&self, params: web::Query<ScriptParams>) -> impl Responder;
+}
 
-    /// Get the runner configuration path
-    fn config_path(&self) -> PathBuf;
+pub struct RunnerSetupScriptsHandler;
 
-    /// Get the runner token
-    fn runner_token(&self) -> String;
-
-    /// Get the runner registration token
-    fn registration_token(&self) -> String;
-
-    /// Get the runner tags
-    fn runner_tags(&self) -> Vec<String>;
-
-    /// Generate the installation script
-    fn generate_installation_script(&self) -> Result<String, HttpResponse> {
-        let script = format!(
-            r#"#!/bin/bash
-# Install GitLab Runner
-curl -L https://packages.gitlab.com/install/repositories/runner/gitlab-runner/script.deb.sh | sudo bash
-sudo apt-get install gitlab-runner
-
-# Register the runner
-sudo gitlab-runner register \
-  --non-interactive \
-  --url "{}" \
-  --registration-token "{}" \
-  --executor "docker" \
-  --docker-image alpine:latest \
-  --description "{}" \
-  --tag-list "{}" \
-  --run-untagged="true" \
-  --locked="false" \
-  --access-level="not_protected"
-
-# Start the runner
-sudo gitlab-runner start"#,
-            self.config_path().to_str().unwrap_or(""),
-            self.registration_token(),
-            "GitLab Runner",
-            self.runner_tags().join(",")
-        );
-
-        Ok(script)
-    }
-
-    /// Generate the configuration script
-    fn generate_config_script(&self) -> Result<String, HttpResponse> {
-        let config = format!(
-            r#"concurrent = 1
-check_interval = 0
-
-[session_server]
-  session_timeout = 1800
-
-[[runners]]
-  name = "{}"
-  url = "{}"
-  token = "{}"
-  executor = "docker"
-  [runners.docker]
-    tls_verify = false
-    image = "alpine:latest"
-    privileged = false
-    disable_entrypoint_overwrite = false
-    oom_kill_disable = false
-    disable_cache = false
-    volumes = ["/cache"]
-    shm_size = 0
-"#,
-            "GitLab Runner",
-            self.config_path().to_str().unwrap_or(""),
-            self.runner_token()
-        );
-
-        Ok(config)
-    }
-
-    /// Save the installation script
-    async fn save_installation_script(&self) -> Result<(), HttpResponse> {
-        let script = self.generate_installation_script()?;
-        let path = self.installation_path();
-
-        tokio::fs::write(&path, script)
-            .await
-            .map_err(|e| HttpResponse::InternalServerError().body(e.to_string()))?;
-
-        Ok(())
-    }
-
-    /// Save the configuration script
-    async fn save_config_script(&self) -> Result<(), HttpResponse> {
-        let config = self.generate_config_script()?;
-        let path = self.config_path();
-
-        tokio::fs::write(&path, config)
-            .await
-            .map_err(|e| HttpResponse::InternalServerError().body(e.to_string()))?;
-
-        Ok(())
-    }
-
-    /// Get script status
-    async fn get_script_status(&self) -> Result<HashMap<String, bool>, HttpResponse> {
-        let mut status = HashMap::new();
-
-        status.insert(
-            "installation_script_exists".to_string(),
-            self.installation_path().exists(),
-        );
-
-        status.insert(
-            "config_script_exists".to_string(),
-            self.config_path().exists(),
-        );
-
-        Ok(status)
+impl RunnerSetupScriptsHandler {
+    pub fn new() -> Self {
+        RunnerSetupScriptsHandler
     }
 }
+
+impl RunnerSetupScripts for RunnerSetupScriptsHandler {
+    fn private_runner_setup_scripts(&self, params: web::Query<ScriptParams>) -> impl Responder {
+        let os = params.os.clone().unwrap_or_default();
+        let arch = params.arch.clone().unwrap_or_default();
+        
+        let instructions = RunnerInstructions::new(os, arch);
+        
+        if !instructions.errors.is_empty() {
+            let error_response = RunnerSetupError {
+                errors: instructions.errors,
+            };
+            return HttpResponse::BadRequest().json(error_response);
+        }
+        
+        let output = RunnerSetupOutput {
+            install: instructions.install_script,
+            register: instructions.register_command,
+        };
+        
+        HttpResponse::Ok().json(output)
+    }
+}
+
+// This would be implemented in a separate module
+pub mod ci {
+    pub mod runner_instructions {
+        use serde::{Deserialize, Serialize};
+        
+        #[derive(Debug, Serialize, Deserialize)]
+        pub struct RunnerInstructions {
+            pub os: String,
+            pub arch: String,
+            pub install_script: String,
+            pub register_command: String,
+            pub errors: Vec<String>,
+        }
+        
+        impl RunnerInstructions {
+            pub fn new(os: String, arch: String) -> Self {
+                // In a real implementation, this would generate the appropriate scripts
+                // based on the OS and architecture
+                let mut errors = Vec::new();
+                
+                // Validate OS and arch
+                if os.is_empty() {
+                    errors.push("OS parameter is required".to_string());
+                }
+                
+                if arch.is_empty() {
+                    errors.push("Architecture parameter is required".to_string());
+                }
+                
+                // Generate scripts based on OS and arch
+                let (install_script, register_command) = if errors.is_empty() {
+                    match (os.as_str(), arch.as_str()) {
+                        ("linux", "amd64") => (
+                            "#!/bin/bash\n# Linux AMD64 installation script".to_string(),
+                            "gitlab-runner register --url https://gitlab.com/ --token YOUR_TOKEN".to_string(),
+                        ),
+                        ("linux", "arm64") => (
+                            "#!/bin/bash\n# Linux ARM64 installation script".to_string(),
+                            "gitlab-runner register --url https://gitlab.com/ --token YOUR_TOKEN".to_string(),
+                        ),
+                        ("windows", "amd64") => (
+                            "powershell -Command \"# Windows AMD64 installation script\"".to_string(),
+                            "gitlab-runner.exe register --url https://gitlab.com/ --token YOUR_TOKEN".to_string(),
+                        ),
+                        _ => {
+                            errors.push(format!("Unsupported OS/architecture combination: {}/{}", os, arch));
+                            (String::new(), String::new())
+                        }
+                    }
+                } else {
+                    (String::new(), String::new())
+                };
+                
+                RunnerInstructions {
+                    os,
+                    arch,
+                    install_script,
+                    register_command,
+                    errors,
+                }
+            }
+        }
+    }
+} 

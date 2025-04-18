@@ -1,174 +1,96 @@
-use crate::models::project::Project;
 use crate::models::snippet::Snippet;
 use crate::models::user::User;
-use actix_web::{web, HttpResponse};
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use actix_web::{web, HttpRequest, HttpResponse};
+use std::sync::Arc;
 
-/// Module for handling snippet authorizations
+/// This trait provides authorization methods for snippet-related actions
 pub trait SnippetAuthorizations {
-    /// Get the current user
-    fn current_user(&self) -> Option<&User>;
+    /// Authorize reading a snippet
+    fn authorize_read_snippet(
+        &self,
+        snippet: &Snippet,
+        current_user: Option<&User>,
+    ) -> Result<(), HttpResponse>;
 
-    /// Get the current snippet
-    fn current_snippet(&self) -> Option<&Snippet>;
+    /// Authorize updating a snippet
+    fn authorize_update_snippet(
+        &self,
+        snippet: &Snippet,
+        current_user: Option<&User>,
+    ) -> Result<(), HttpResponse>;
 
-    /// Get the current project
-    fn current_project(&self) -> Option<&Project>;
+    /// Authorize creating a snippet
+    fn authorize_create_snippet(&self, current_user: Option<&User>) -> Result<(), HttpResponse>;
+}
 
-    /// Get the current user ID
-    fn user_id(&self) -> Option<i32>;
+pub struct SnippetAuthorizationsHandler;
 
-    /// Get the snippet ID
-    fn snippet_id(&self) -> Option<i32>;
+impl SnippetAuthorizationsHandler {
+    pub fn new() -> Self {
+        SnippetAuthorizationsHandler
+    }
+}
 
-    /// Get the snippet author ID
-    fn snippet_author_id(&self) -> Option<i32>;
+impl SnippetAuthorizations for SnippetAuthorizationsHandler {
+    fn authorize_read_snippet(
+        &self,
+        snippet: &Snippet,
+        current_user: Option<&User>,
+    ) -> Result<(), HttpResponse> {
+        if snippet.public || current_user.map_or(false, |user| user.can_read_snippet(snippet)) {
+            Ok(())
+        } else {
+            Err(HttpResponse::NotFound().finish())
+        }
+    }
 
-    /// Get the project ID
-    fn project_id(&self) -> Option<i32>;
+    fn authorize_update_snippet(
+        &self,
+        snippet: &Snippet,
+        current_user: Option<&User>,
+    ) -> Result<(), HttpResponse> {
+        if current_user.map_or(false, |user| user.can_update_snippet(snippet)) {
+            Ok(())
+        } else {
+            Err(HttpResponse::NotFound().finish())
+        }
+    }
 
-    /// Check if the user can read the snippet
-    fn can_read_snippet(&self) -> bool {
-        let user = match self.current_user() {
-            Some(user) => user,
-            None => return false,
-        };
+    fn authorize_create_snippet(&self, current_user: Option<&User>) -> Result<(), HttpResponse> {
+        if current_user.is_some() {
+            Ok(())
+        } else {
+            Err(HttpResponse::NotFound().finish())
+        }
+    }
+}
 
-        let snippet = match self.current_snippet() {
-            Some(snippet) => snippet,
-            None => return false,
-        };
+// These would be implemented in separate modules
+pub mod models {
+    pub mod snippet {
+        pub struct Snippet {
+            pub public: bool,
+            // Add other fields as needed
+        }
+    }
 
-        // Admin can read all snippets
-        if user.is_admin() {
-            return true;
+    pub mod user {
+        use super::snippet::Snippet;
+
+        pub struct User {
+            // Add fields as needed
         }
 
-        // Project members can read project snippets
-        if let Some(project) = self.current_project() {
-            if project.is_member(user.id) {
-                return true;
+        impl User {
+            pub fn can_read_snippet(&self, snippet: &Snippet) -> bool {
+                // Implement permission check
+                true
+            }
+
+            pub fn can_update_snippet(&self, snippet: &Snippet) -> bool {
+                // Implement permission check
+                true
             }
         }
-
-        // Public snippets can be read by anyone
-        if snippet.is_public() {
-            return true;
-        }
-
-        // Snippet author can read their own snippets
-        if snippet.author_id == user.id {
-            return true;
-        }
-
-        false
-    }
-
-    /// Check if the user can write to the snippet
-    fn can_write_snippet(&self) -> bool {
-        let user = match self.current_user() {
-            Some(user) => user,
-            None => return false,
-        };
-
-        let snippet = match self.current_snippet() {
-            Some(snippet) => snippet,
-            None => return false,
-        };
-
-        // Admin can write to all snippets
-        if user.is_admin() {
-            return true;
-        }
-
-        // Project members can write to project snippets
-        if let Some(project) = self.current_project() {
-            if project.is_member(user.id) {
-                return true;
-            }
-        }
-
-        // Snippet author can write to their own snippets
-        if snippet.author_id == user.id {
-            return true;
-        }
-
-        false
-    }
-
-    /// Check if the user can view the snippet
-    fn can_view_snippet(&self) -> bool {
-        // TODO: Implement actual authorization check
-        // This would typically involve:
-        // 1. Checking if the snippet is public
-        // 2. Checking if the user has project access
-        // 3. Checking if the user is the author
-        true
-    }
-
-    /// Check if the user can edit the snippet
-    fn can_edit_snippet(&self) -> bool {
-        // TODO: Implement actual authorization check
-        // This would typically involve:
-        // 1. Checking if the user is the author
-        // 2. Checking if the user has project write access
-        // 3. Checking if the snippet is editable
-        self.user_id() == self.snippet_author_id()
-    }
-
-    /// Check if the user can delete the snippet
-    fn can_delete_snippet(&self) -> bool {
-        // TODO: Implement actual authorization check
-        // This would typically involve:
-        // 1. Checking if the user is the author
-        // 2. Checking if the user has project admin access
-        // 3. Checking if the snippet is deletable
-        self.user_id() == self.snippet_author_id()
-    }
-
-    /// Get snippet permissions
-    fn get_snippet_permissions(&self) -> HashMap<String, bool> {
-        let mut permissions = HashMap::new();
-
-        permissions.insert("can_view".to_string(), self.can_view_snippet());
-        permissions.insert("can_edit".to_string(), self.can_edit_snippet());
-        permissions.insert("can_delete".to_string(), self.can_delete_snippet());
-
-        permissions
-    }
-
-    /// Enforce snippet read authorization
-    fn enforce_snippet_read_auth(&self) -> Result<(), HttpResponse> {
-        if !self.can_read_snippet() {
-            return Err(HttpResponse::Forbidden().json(json!({
-                "error": "Forbidden",
-                "message": "You don't have permission to read this snippet"
-            })));
-        }
-
-        Ok(())
-    }
-
-    /// Enforce snippet write authorization
-    fn enforce_snippet_write_auth(&self) -> Result<(), HttpResponse> {
-        if !self.can_write_snippet() {
-            return Err(HttpResponse::Forbidden().json(json!({
-                "error": "Forbidden",
-                "message": "You don't have permission to modify this snippet"
-            })));
-        }
-
-        Ok(())
-    }
-
-    /// Enforce snippet authorization
-    fn enforce_snippet_auth(&self) -> Result<(), HttpResponse> {
-        if !self.can_view_snippet() {
-            return Err(HttpResponse::Forbidden().json(serde_json::json!({
-                "error": "You don't have permission to access this snippet"
-            })));
-        }
-        Ok(())
     }
 }

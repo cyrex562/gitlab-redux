@@ -1,53 +1,58 @@
 use actix_web::web;
 use serde::{Deserialize, Serialize};
-use url::Url;
+use std::collections::HashMap;
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ImportUrlCredentials {
-    pub user: Option<String>,
-    pub password: Option<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ImportUrlParams {
-    pub import_url: String,
-    pub import_type: String,
-}
-
-pub trait ImportUrlParams {
-    fn import_url_params(&self, params: &web::Json<ProjectParams>) -> ImportUrlParams {
-        if params.import_url.is_none() {
-            return ImportUrlParams {
-                import_url: String::new(),
-                import_type: String::new(),
-            };
-        }
-
-        ImportUrlParams {
-            import_url: self.import_params_to_full_url(params),
-            import_type: "git".to_string(),
-        }
-    }
-
-    fn import_params_to_full_url(&self, params: &ProjectParams) -> String {
-        let mut url = Url::parse(&params.import_url.as_ref().unwrap())
-            .unwrap_or_else(|_| Url::parse("http://localhost").unwrap());
-
-        if let Some(user) = &params.import_url_user {
-            url.set_username(user).ok();
-        }
-
-        if let Some(password) = &params.import_url_password {
-            url.set_password(Some(password)).ok();
-        }
-
-        url.to_string()
-    }
-}
+use crate::utils::url_sanitizer::UrlSanitizer;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ProjectParams {
     pub import_url: Option<String>,
     pub import_url_user: Option<String>,
     pub import_url_password: Option<String>,
+}
+
+pub trait ImportUrlParams {
+    fn import_url_params(&self, params: &ProjectParams) -> HashMap<String, String>;
+    fn import_params_to_full_url(&self, params: &ProjectParams) -> String;
+}
+
+pub struct ImportUrlParamsImpl;
+
+impl ImportUrlParamsImpl {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+impl ImportUrlParams for ImportUrlParamsImpl {
+    fn import_url_params(&self, params: &ProjectParams) -> HashMap<String, String> {
+        let mut result = HashMap::new();
+
+        if let Some(import_url) = &params.import_url {
+            result.insert(
+                "import_url".to_string(),
+                self.import_params_to_full_url(params),
+            );
+            // We need to set import_type because attempting to retry an import by URL
+            // could leave a stale value around. This would erroneously cause an importer
+            // (e.g. import/export) to run.
+            result.insert("import_type".to_string(), "git".to_string());
+        }
+
+        result
+    }
+
+    fn import_params_to_full_url(&self, params: &ProjectParams) -> String {
+        let credentials =
+            if params.import_url_user.is_some() || params.import_url_password.is_some() {
+                Some((
+                    params.import_url_user.clone().unwrap_or_default(),
+                    params.import_url_password.clone().unwrap_or_default(),
+                ))
+            } else {
+                None
+            };
+
+        UrlSanitizer::new(params.import_url.as_deref().unwrap_or(""), credentials).full_url()
+    }
 }

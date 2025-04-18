@@ -1,37 +1,57 @@
-use std::collections::HashMap;
+use actix_web::{web, HttpRequest, HttpResponse};
+use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
-pub struct MergeRequest {
-    pub assignees: Vec<User>,
-    pub project: Project,
-}
-
-pub struct User {
-    pub id: i32,
-    // Add other user fields as needed
-}
-
-pub struct Project {
-    pub team: Team,
-}
-
-pub struct Team {
-    // Add team fields as needed
-}
-
+/// This trait provides functionality for rendering assignees in controllers
 pub trait RendersAssignees {
-    fn preload_assignees_for_render(&self, merge_request: &MergeRequest) -> HashMap<i32, i32> {
-        let assignee_ids: Vec<i32> = merge_request.assignees.iter().map(|user| user.id).collect();
-        merge_request
-            .project
-            .team
-            .max_member_access_for_user_ids(&assignee_ids)
+    /// Render assignees for the current request
+    fn render_assignees(&self, req: &HttpRequest) -> HttpResponse;
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Assignee {
+    id: i32,
+    name: String,
+    username: String,
+    avatar_url: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RendersAssigneesHandler {
+    current_user: Option<Arc<User>>,
+}
+
+impl RendersAssigneesHandler {
+    pub fn new(current_user: Option<Arc<User>>) -> Self {
+        RendersAssigneesHandler { current_user }
+    }
+
+    fn fetch_assignees(&self) -> Vec<Assignee> {
+        // This would be implemented to fetch assignees from the database
+        // For now, we'll return an empty vector
+        Vec::new()
     }
 }
 
-impl Team {
-    pub fn max_member_access_for_user_ids(&self, user_ids: &[i32]) -> HashMap<i32, i32> {
-        // Implementation would depend on your access control system
-        // This is a placeholder that returns a map of user IDs to their access levels
-        user_ids.iter().map(|&id| (id, 0)).collect()
+impl RendersAssignees for RendersAssigneesHandler {
+    fn render_assignees(&self, req: &HttpRequest) -> HttpResponse {
+        // Check if user is authenticated
+        if self.current_user.is_none() {
+            return HttpResponse::Unauthorized().finish();
+        }
+
+        // Fetch assignees
+        let assignees = self.fetch_assignees();
+
+        // Render assignees as JSON
+        HttpResponse::Ok()
+            .content_type("application/json")
+            .json(assignees)
     }
+}
+
+// This would be implemented in a separate module
+pub struct User {
+    id: i32,
+    // Add other fields as needed
 }

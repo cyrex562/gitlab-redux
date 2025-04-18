@@ -1,388 +1,603 @@
-use actix_web::{web, HttpRequest, HttpResponse, Responder};
+use actix_web::{web, HttpRequest, HttpResponse, Result};
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use tokio::sync::RwLock;
+use std::time::SystemTime;
 
-use crate::models::user::User;
-use crate::services::email_verification::{
-    EmailVerificationService, GenerateTokenService, UpdateEmailService, ValidateTokenService,
-};
-use crate::utils::logger::AppLogger;
-use crate::utils::rate_limiter::RateLimiter;
+// Define the response for verification
+#[derive(Debug, Serialize, Deserialize)]
+pub struct VerificationResponse {
+    pub status: String,
+    pub message: Option<String>,
+    pub redirect_path: Option<String>,
+}
 
-/// Module for handling email verification
+// Define the User trait
+pub trait User: Send + Sync {
+    fn id(&self) -> i64;
+    fn username(&self) -> &str;
+    fn email(&self) -> &str;
+    fn is_active(&self) -> bool;
+    fn is_locked(&self) -> bool;
+    fn is_confirmed(&self) -> bool;
+    fn valid_password(&self, password: &str) -> bool;
+    fn unlock_token(&self) -> Option<&str>;
+    fn set_unlock_token(&mut self, token: Option<String>);
+    fn lock_access(&mut self, send_instructions: bool, reason: Option<&str>);
+    fn unlock_access(&mut self);
+    fn confirm(&mut self);
+    fn locked_at(&self) -> Option<DateTime<Utc>>;
+    fn email_reset_offered_at(&self) -> Option<DateTime<Utc>>;
+    fn set_email_reset_offered_at(&mut self, time: Option<DateTime<Utc>>);
+    fn secondary_emails(&self) -> Vec<String>;
+    fn find_confirmed_email(&self, email: &str) -> Option<String>;
+}
+
+// Define the EmailVerificationService trait
+pub trait EmailVerificationService: Send + Sync {
+    fn generate_token(&self, attr: &str, user: &dyn User) -> (String, String);
+    fn validate_token(&self, attr: &str, user: &dyn User, token: &str) -> VerificationResult;
+}
+
+// Define the VerificationResult struct
+#[derive(Debug, Serialize, Deserialize)]
+pub struct VerificationResult {
+    pub status: String,
+    pub reason: Option<String>,
+    pub message: Option<String>,
+}
+
+// Define the AuthenticationEvent trait
+pub trait AuthenticationEvent: Send + Sync {
+    fn initial_login_or_known_ip_address(user: &dyn User, ip: &str) -> bool;
+}
+
+// Define the Feature trait
+pub trait Feature: Send + Sync {
+    fn is_enabled(feature: &str, user: &dyn User) -> bool;
+    fn is_disabled(feature: &str, user: &dyn User, feature_type: &str) -> bool;
+}
+
+// Define the ApplicationRateLimiter trait
+pub trait ApplicationRateLimiter: Send + Sync {
+    fn is_throttled(rate_limit: &str, scope: &dyn User) -> bool;
+    fn rate_limits(rate_limit: &str) -> RateLimit;
+}
+
+// Define the RateLimit struct
+pub struct RateLimit {
+    pub interval: i64,
+}
+
+// Define the VerifiesWithEmail trait
 pub trait VerifiesWithEmail {
-    /// Verify with email
-    async fn verify_with_email(&self, req: &HttpRequest) -> HttpResponse {
-        let user = self
-            .find_user()
-            .await
-            .or_else(|| self.find_verification_user().await);
+    fn verify_with_email(&self, req: &HttpRequest) -> Result<HttpResponse>;
+    fn resend_verification_code(&self, req: &HttpRequest) -> Result<HttpResponse>;
+    fn update_email(&self, req: &HttpRequest) -> Result<HttpResponse>;
+    fn successful_verification(&self, req: &HttpRequest) -> Result<HttpResponse>;
+    fn find_user(&self, req: &HttpRequest) -> Option<Arc<dyn User>>;
+    fn verification_email(&self, user: &dyn User) -> String;
+    fn unconfirmed_verification_email(&self, user: &dyn User) -> bool;
+    fn two_factor_enabled(&self) -> bool;
+    fn is_qa_request(&self, user_agent: Option<&str>) -> bool;
+    fn authentication_method(&self) -> &str;
+    fn sign_in(&self, user: &dyn User);
+    fn log_audit_event(&self, current_user: &dyn User, user: &dyn User, auth_method: &str);
+    fn log_user_activity(&self, user: &dyn User);
+    fn verify_known_sign_in(&self);
+    fn after_sign_in_path(&self, user: &dyn User) -> String;
+    fn get_session(&self) -> &dyn Session;
+    fn set_session_value(&self, key: &str, value: i64);
+    fn remove_session_value(&self, key: &str);
+    fn get_request_ip(&self, req: &HttpRequest) -> String;
+    fn get_user_agent(&self, req: &HttpRequest) -> Option<String>;
+    fn get_user_params(&self, req: &HttpRequest) -> UserParams;
+    fn get_verification_params(&self, req: &HttpRequest) -> VerificationParams;
+    fn get_email_params(&self, req: &HttpRequest) -> EmailParams;
+    fn render_json(&self, data: impl Serialize) -> Result<HttpResponse>;
+    fn render_template(&self, template: &str, data: impl Serialize) -> Result<HttpResponse>;
+    fn redirect_to(&self, path: &str, message: Option<&str>) -> Result<HttpResponse>;
+    fn format_time_interval(&self, seconds: i64) -> String;
+}
 
-        if let Some(user) = user {
-            if !user.is_active() {
-                return HttpResponse::Unauthorized().finish();
-            }
+// Define the Session trait
+pub trait Session {
+    fn get(&self, key: &str) -> Option<i64>;
+    fn set(&self, key: &str, value: i64);
+    fn remove(&self, key: &str);
+}
 
-            if let Some(session) = req.session() {
-                if let Some(verification_user_id) = session.get::<i32>("verification_user_id") {
-                    if let Some(token) = self.verification_params().verification_token {
-                        // The verification token is submitted, verify it
-                        return self.verify_token(&user, &token).await;
-                    }
-                }
-            }
+// Define the UserParams struct
+#[derive(Debug, Deserialize)]
+pub struct UserParams {
+    pub password: Option<String>,
+}
 
-            if self.require_email_verification_enabled(&user).await {
-                // Limit the amount of password guesses
-                if self.check_rate_limit("user_sign_in", &user).await {
-                    return self.render_sign_in_rate_limited();
-                }
+// Define the VerificationParams struct
+#[derive(Debug, Deserialize)]
+pub struct VerificationParams {
+    pub verification_token: Option<String>,
+}
 
-                // Verify the email if the user has logged in successfully
-                if user.valid_password(&self.user_params().password) {
-                    return self.verify_email(&user).await;
-                }
-            }
-        }
+// Define the EmailParams struct
+#[derive(Debug, Deserialize)]
+pub struct EmailParams {
+    pub email: Option<String>,
+}
 
-        HttpResponse::Ok().finish()
-    }
+// Define the VerifiesWithEmailHandler struct
+pub struct VerifiesWithEmailHandler {
+    email_verification_service: Arc<dyn EmailVerificationService>,
+    authentication_event: Arc<dyn AuthenticationEvent>,
+    feature: Arc<dyn Feature>,
+    application_rate_limiter: Arc<dyn ApplicationRateLimiter>,
+    token_valid_for_minutes: i64,
+}
 
-    /// Resend verification code
-    async fn resend_verification_code(&self, req: &HttpRequest) -> impl Responder {
-        let user = match self.find_verification_user().await {
-            Some(user) => user,
-            None => return HttpResponse::NotFound().finish(),
-        };
-
-        if self.send_rate_limited(&user).await {
-            let interval = self.rate_limit_interval("email_verification_code_send");
-            let message = format!(
-                "You've reached the maximum amount of resends. Wait {} and try again.",
-                interval
-            );
-            return HttpResponse::TooManyRequests().json(json!({
-                "status": "failure",
-                "message": message
-            }));
-        }
-
-        let secondary_email = self
-            .user_secondary_email(&user, &self.email_params().email)
-            .await;
-
-        if let Some(email) = self.email_params().email {
-            if let Some(secondary_email) = secondary_email {
-                self.send_verification_instructions(&user, Some(secondary_email), None)
-                    .await;
-            }
-        } else {
-            self.send_verification_instructions(&user, None, None).await;
-        }
-
-        HttpResponse::Ok().json(json!({ "status": "success" }))
-    }
-
-    /// Update email
-    async fn update_email(&self, req: &HttpRequest) -> impl Responder {
-        let user = match self.find_verification_user().await {
-            Some(user) => user,
-            None => return HttpResponse::NotFound().finish(),
-        };
-
-        self.log_verification(&user, "email_update_requested", None)
-            .await;
-
-        let service = UpdateEmailService::new(&user);
-        let result = service.execute(&self.email_params().email).await;
-
-        match result.status {
-            "success" => {
-                self.send_verification_instructions(&user, None, None).await;
-                HttpResponse::Ok().json(result)
-            }
-            _ => {
-                self.handle_verification_failure(&user, &result.reason, &result.message)
-                    .await;
-                HttpResponse::UnprocessableEntity().json(result)
-            }
+impl VerifiesWithEmailHandler {
+    pub fn new(
+        email_verification_service: Arc<dyn EmailVerificationService>,
+        authentication_event: Arc<dyn AuthenticationEvent>,
+        feature: Arc<dyn Feature>,
+        application_rate_limiter: Arc<dyn ApplicationRateLimiter>,
+        token_valid_for_minutes: i64,
+    ) -> Self {
+        VerifiesWithEmailHandler {
+            email_verification_service,
+            authentication_event,
+            feature,
+            application_rate_limiter,
+            token_valid_for_minutes,
         }
     }
 
-    /// Successful verification
-    async fn successful_verification(&self, req: &HttpRequest) -> impl Responder {
-        if let Some(session) = req.session() {
-            session.remove("verification_user_id");
-        }
-
-        let redirect_url = self.after_sign_in_path().await;
-        HttpResponse::Ok().content_type("text/html").body(format!(
-            r#"<!DOCTYPE html>
-                <html>
-                <head>
-                    <meta http-equiv="refresh" content="0;url={}">
-                </head>
-                <body>
-                    <p>Redirecting to <a href="{}">{}</a>...</p>
-                </body>
-                </html>"#,
-            redirect_url, redirect_url, redirect_url
-        ))
+    fn skip_verify_with_email(&self, two_factor_enabled: bool, user_agent: Option<&str>) -> bool {
+        two_factor_enabled || self.is_qa_request(user_agent)
     }
 
-    /// Skip verify with email
-    fn skip_verify_with_email(&self, req: &HttpRequest) -> bool {
-        self.two_factor_enabled() || self.is_qa_request(req)
-    }
-
-    /// Find verification user
-    async fn find_verification_user(&self) -> Option<Arc<User>> {
-        if let Some(session) = self.request().session() {
-            if let Some(user_id) = session.get::<i32>("verification_user_id") {
-                return User::find_by_id(user_id).await;
-            }
-        }
+    fn find_verification_user(&self, session: &dyn Session) -> Option<Arc<dyn User>> {
+        // In a real implementation, this would find the user by ID from the session
+        // For now, we'll return None
         None
     }
 
-    /// Send verification instructions
-    async fn send_verification_instructions(
+    fn send_verification_instructions(
         &self,
-        user: &User,
-        secondary_email: Option<String>,
-        reason: Option<String>,
-    ) {
-        let service = GenerateTokenService::new("unlock_token", user);
-        let (raw_token, encrypted_token) = service.execute().await;
+        user: &mut dyn User,
+        secondary_email: Option<&str>,
+        reason: Option<&str>,
+    ) -> Result<()> {
+        let (raw_token, encrypted_token) = self
+            .email_verification_service
+            .generate_token("unlock_token", user);
 
-        user.set_unlock_token(&encrypted_token);
+        user.set_unlock_token(Some(encrypted_token));
         user.lock_access(false, reason);
 
-        self.send_verification_instructions_email(user, &raw_token, secondary_email)
-            .await;
-    }
-
-    /// Send verification instructions email
-    async fn send_verification_instructions_email(
-        &self,
-        user: &User,
-        token: &str,
-        secondary_email: Option<String>,
-    ) {
         let email = secondary_email.unwrap_or_else(|| self.verification_email(user));
-        self.notify_service()
-            .send_verification_instructions_email(&email, token)
-            .await;
+        self.send_verification_instructions_email(user, &raw_token, secondary_email);
 
-        self.log_verification(user, "instructions_sent", None).await;
+        Ok(())
     }
 
-    /// Verify email
-    async fn verify_email(&self, user: &User) -> HttpResponse {
-        if user.has_unlock_token() {
-            if self.unlock_token_expired(user).await {
-                self.send_verification_instructions(user, None, None).await;
+    fn send_verification_instructions_email(
+        &self,
+        user: &dyn User,
+        token: &str,
+        secondary_email: Option<&str>,
+    ) {
+        // In a real implementation, this would send an email
+        // For now, we'll just log it
+        println!(
+            "Sending verification instructions to {} with token {}",
+            secondary_email.unwrap_or_else(|| self.verification_email(user)),
+            token
+        );
+
+        self.log_verification(user, "instructions_sent", None);
+    }
+
+    fn verify_email(&self, user: &mut dyn User, password: Option<&str>) -> Result<()> {
+        if let Some(token) = user.unlock_token() {
+            // Prompt for the token if it already has been set. If the token has expired, send a new one.
+            if self.unlock_token_expired(user) {
+                self.send_verification_instructions(user, None, None)?;
             }
-            self.prompt_for_email_verification(user).await
-        } else if user.is_access_locked() || !self.trusted_ip_address(user).await {
-            let reason = if !user.is_access_locked() {
-                Some("sign in from untrusted IP address".to_string())
+            self.prompt_for_email_verification(user)?;
+        } else if user.is_locked() || !self.trusted_ip_address(user) {
+            // require email verification if:
+            // - their account has been locked because of too many failed login attempts, or
+            // - they have logged in before, but never from the current ip address
+            let reason = if !user.is_locked() {
+                Some("sign in from untrusted IP address")
             } else {
                 None
             };
 
-            if !self.send_rate_limited(user).await {
-                self.send_verification_instructions(user, None, reason)
-                    .await;
+            if !self.send_rate_limited(user) {
+                self.send_verification_instructions(user, None, reason)?;
             }
-            self.prompt_for_email_verification(user).await
+
+            self.prompt_for_email_verification(user)?;
+        }
+
+        Ok(())
+    }
+
+    fn verify_token(&self, user: &mut dyn User, token: &str) -> Result<VerificationResponse> {
+        let result = self
+            .email_verification_service
+            .validate_token("unlock_token", user, token);
+
+        if result.status == "success" {
+            self.handle_verification_success(user)?;
+
+            Ok(VerificationResponse {
+                status: "success".to_string(),
+                message: None,
+                redirect_path: Some("/users/successful_verification".to_string()),
+            })
         } else {
-            HttpResponse::Ok().finish()
+            self.handle_verification_failure(
+                user,
+                result.reason.as_deref(),
+                result.message.as_deref(),
+            )?;
+
+            Ok(result)
         }
     }
 
-    /// Verify token
-    async fn verify_token(&self, user: &User, token: &str) -> HttpResponse {
-        let service = ValidateTokenService::new("unlock_token", user, token);
-        let result = service.execute().await;
+    fn render_sign_in_rate_limited(&self) -> Result<HttpResponse> {
+        let interval = self.format_time_interval(
+            self.application_rate_limiter
+                .rate_limits("user_sign_in")
+                .interval,
+        );
 
-        match result.status.as_str() {
-            "success" => {
-                self.handle_verification_success(user).await;
-                HttpResponse::Ok().json(json!({
-                    "status": "success",
-                    "redirect_path": "/users/successful_verification"
-                }))
-            }
-            _ => {
-                self.handle_verification_failure(user, &result.reason, &result.message)
-                    .await;
-                HttpResponse::UnprocessableEntity().json(result)
-            }
-        }
-    }
-
-    /// Render sign in rate limited
-    fn render_sign_in_rate_limited(&self) -> HttpResponse {
-        let interval = self.rate_limit_interval("user_sign_in");
         let message = format!(
             "Maximum login attempts exceeded. Wait {} and try again.",
             interval
         );
-        HttpResponse::TooManyRequests()
-            .content_type("text/html")
-            .body(format!(
-                r#"<!DOCTYPE html>
-                <html>
-                <head>
-                    <meta http-equiv="refresh" content="0;url=/users/sign_in">
-                </head>
-                <body>
-                    <p>{}</p>
-                    <p>Redirecting to <a href="/users/sign_in">login page</a>...</p>
-                </body>
-                </html>"#,
-                message
-            ))
+
+        self.redirect_to("/users/sign_in", Some(&message))
     }
 
-    /// Rate limit interval
-    fn rate_limit_interval(&self, rate_limit: &str) -> String {
-        let interval = self.rate_limiter().get_interval(rate_limit);
-        self.format_time_interval(interval)
-    }
-
-    /// Send rate limited
-    async fn send_rate_limited(&self, user: &User) -> bool {
-        self.rate_limiter()
+    fn send_rate_limited(&self, user: &dyn User) -> bool {
+        self.application_rate_limiter
             .is_throttled("email_verification_code_send", user)
-            .await
     }
 
-    /// Handle verification failure
-    async fn handle_verification_failure(&self, user: &User, reason: &str, message: &str) {
-        user.add_error("base", message);
-        self.log_verification(user, "failed_attempt", Some(reason))
-            .await;
+    fn handle_verification_failure(
+        &self,
+        user: &dyn User,
+        reason: Option<&str>,
+        message: Option<&str>,
+    ) -> Result<()> {
+        // In a real implementation, this would add an error to the user
+        // For now, we'll just log it
+        println!(
+            "Verification failure for user {}: {} - {}",
+            user.username(),
+            reason.unwrap_or("unknown"),
+            message.unwrap_or("No message")
+        );
+
+        self.log_verification(user, "failed_attempt", reason);
+
+        Ok(())
     }
 
-    /// Handle verification success
-    async fn handle_verification_success(&self, user: &User) {
-        if self.unconfirmed_verification_email(user).await {
+    fn handle_verification_success(&self, user: &mut dyn User) -> Result<()> {
+        if self.unconfirmed_verification_email(user) {
             user.confirm();
         }
 
-        if user.email_reset_offered_at.is_none() {
-            user.set_email_reset_offered_at(Utc::now());
+        if user.email_reset_offered_at().is_none() {
+            user.set_email_reset_offered_at(Some(Utc::now()));
         }
 
         user.unlock_access();
-        self.log_verification(user, "successful", None).await;
+        self.log_verification(user, "successful", None);
 
-        self.sign_in(user).await;
+        // In a real implementation, this would sign in the user
+        // For now, we'll just log it
+        println!("User {} signed in successfully", user.username());
 
-        self.log_audit_event(user, "email_verification");
-        self.log_user_activity(user).await;
-        self.verify_known_sign_in().await;
+        // These would be implemented in the concrete class
+        // self.sign_in(user);
+        // self.log_audit_event(current_user, user, self.authentication_method());
+        // self.log_user_activity(user);
+        // self.verify_known_sign_in();
+
+        Ok(())
     }
 
-    /// Trusted IP address
-    async fn trusted_ip_address(&self, user: &User) -> bool {
-        self.authentication_service()
-            .is_initial_login_or_known_ip_address(user, self.request().peer_addr().unwrap().ip())
-            .await
+    fn trusted_ip_address(&self, user: &dyn User) -> bool {
+        // In a real implementation, this would check if the IP is trusted
+        // For now, we'll just return true
+        true
     }
 
-    /// Prompt for email verification
-    async fn prompt_for_email_verification(&self, user: &User) -> HttpResponse {
-        if let Some(session) = self.request().session() {
-            session.insert("verification_user_id", user.id);
+    fn prompt_for_email_verification(&self, user: &dyn User) -> Result<()> {
+        // In a real implementation, this would set the session and render a template
+        // For now, we'll just log it
+        println!(
+            "Prompting for email verification for user {}",
+            user.username()
+        );
+
+        Ok(())
+    }
+
+    fn user_secondary_email(&self, user: &dyn User, email: Option<&str>) -> Option<String> {
+        if let Some(email) = email {
+            user.find_confirmed_email(email)
+        } else {
+            None
         }
-
-        HttpResponse::Ok()
-            .content_type("text/html")
-            .body(self.render_email_verification_template(user))
     }
 
-    /// Verification params
-    fn verification_params(&self) -> VerificationParams;
-
-    /// Email params
-    fn email_params(&self) -> EmailParams;
-
-    /// User params
-    fn user_params(&self) -> UserParams;
-
-    /// User secondary email
-    async fn user_secondary_email(&self, user: &User, email: &str) -> Option<String> {
-        user.find_confirmed_email(email).await
-    }
-
-    /// Log verification
-    async fn log_verification(&self, user: &User, event: &str, reason: Option<String>) {
-        AppLogger::info(
-            "Email Verification",
+    fn log_verification(&self, user: &dyn User, event: &str, reason: Option<&str>) {
+        // In a real implementation, this would log the verification
+        // For now, we'll just print it
+        println!(
+            "Email Verification: {} for user {} from IP {} - Reason: {}",
             event,
-            &user.username,
-            self.request().peer_addr().unwrap().ip(),
-            reason,
+            user.username(),
+            "127.0.0.1", // This would be the actual IP in a real implementation
+            reason.unwrap_or("None")
         );
     }
 
-    /// Require email verification enabled
-    async fn require_email_verification_enabled(&self, user: &User) -> bool {
-        self.feature_service()
-            .is_enabled("require_email_verification", user)
-            .await
-            && !self
-                .feature_service()
-                .is_enabled("skip_require_email_verification", user)
-                .await
+    fn require_email_verification_enabled(&self, user: &dyn User) -> bool {
+        self.feature.is_enabled("require_email_verification", user)
+            && self
+                .feature
+                .is_disabled("skip_require_email_verification", user, "ops")
     }
 
-    /// Unlock token expired
-    async fn unlock_token_expired(&self, user: &User) -> bool {
-        if let Some(locked_at) = user.locked_at {
-            let token_valid_for = Duration::minutes(ValidateTokenService::TOKEN_VALID_FOR_MINUTES);
-            locked_at < Utc::now() - token_valid_for
+    fn unlock_token_expired(&self, user: &dyn User) -> bool {
+        if let Some(locked_at) = user.locked_at() {
+            let now = Utc::now();
+            let token_valid_until = locked_at + Duration::minutes(self.token_valid_for_minutes);
+
+            now > token_valid_until
         } else {
             false
         }
     }
 
-    // Required trait methods that need to be implemented by the controller
-    fn request(&self) -> &HttpRequest;
-    fn two_factor_enabled(&self) -> bool;
-    fn is_qa_request(&self, req: &HttpRequest) -> bool;
-    fn find_user(&self) -> Option<Arc<User>>;
-    fn after_sign_in_path(&self) -> String;
-    fn verification_email(&self, user: &User) -> String;
-    fn unconfirmed_verification_email(&self, user: &User) -> bool;
-    fn sign_in(&self, user: &User);
-    fn log_audit_event(&self, user: &User, auth_method: &str);
-    fn log_user_activity(&self, user: &User);
-    fn verify_known_sign_in(&self);
-    fn rate_limiter(&self) -> Arc<RateLimiter>;
-    fn feature_service(&self) -> Arc<FeatureService>;
-    fn authentication_service(&self) -> Arc<AuthenticationService>;
-    fn notify_service(&self) -> Arc<NotifyService>;
-    fn render_email_verification_template(&self, user: &User) -> String;
-    fn format_time_interval(&self, seconds: i64) -> String;
+    fn is_qa_request(&self, user_agent: Option<&str>) -> bool {
+        // In a real implementation, this would check if the request is from QA
+        // For now, we'll just return false
+        false
+    }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct VerificationParams {
-    pub verification_token: Option<String>,
-}
+// Implement the VerifiesWithEmail trait for VerifiesWithEmailHandler
+impl<T: VerifiesWithEmail> VerifiesWithEmail for T {
+    fn verify_with_email(&self, req: &HttpRequest) -> Result<HttpResponse> {
+        let user = self
+            .find_user(req)
+            .or_else(|| self.find_verification_user(self.get_session()));
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct EmailParams {
-    pub email: Option<String>,
-}
+        if let Some(mut user) = user {
+            if user.is_active() {
+                if let Some(session) = self.get_session().get("verification_user_id") {
+                    if let Some(token) = self.get_verification_params(req).verification_token {
+                        // The verification token is submitted, verify it
+                        return self.verify_token(&mut *user, &token);
+                    }
+                } else if self.require_email_verification_enabled(&user) {
+                    // Limit the amount of password guesses, since we now display the email verification page
+                    // when the password is correct, which could be a giveaway when brute-forced.
+                    if self
+                        .application_rate_limiter
+                        .is_throttled("user_sign_in", &*user)
+                    {
+                        return self.render_sign_in_rate_limited();
+                    }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct UserParams {
-    pub password: String,
+                    // Verify the email if the user has logged in successfully.
+                    if let Some(password) = &self.get_user_params(req).password {
+                        if user.valid_password(password) {
+                            self.verify_email(&mut *user, Some(password))?;
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(HttpResponse::Ok().finish())
+    }
+
+    fn resend_verification_code(&self, req: &HttpRequest) -> Result<HttpResponse> {
+        if let Some(user) = self.find_verification_user(self.get_session()) {
+            if self.send_rate_limited(&user) {
+                let interval = self.format_time_interval(
+                    self.application_rate_limiter
+                        .rate_limits("email_verification_code_send")
+                        .interval,
+                );
+
+                let message = format!(
+                    "You've reached the maximum amount of resends. Wait {} and try again.",
+                    interval
+                );
+
+                return self.render_json(VerificationResponse {
+                    status: "failure".to_string(),
+                    message: Some(message),
+                    redirect_path: None,
+                });
+            }
+
+            let secondary_email =
+                self.user_secondary_email(&user, self.get_email_params(req).email.as_deref());
+
+            if let Some(email) = &self.get_email_params(req).email {
+                if let Some(secondary_email) = secondary_email {
+                    self.send_verification_instructions(&mut *user, Some(&secondary_email), None)?;
+                }
+            } else if self.get_email_params(req).email.is_none() {
+                self.send_verification_instructions(&mut *user, None, None)?;
+            }
+
+            return self.render_json(VerificationResponse {
+                status: "success".to_string(),
+                message: None,
+                redirect_path: None,
+            });
+        }
+
+        Ok(HttpResponse::Ok().finish())
+    }
+
+    fn update_email(&self, req: &HttpRequest) -> Result<HttpResponse> {
+        if let Some(mut user) = self.find_verification_user(self.get_session()) {
+            self.log_verification(&user, "email_update_requested", None);
+
+            // In a real implementation, this would update the email
+            // For now, we'll just return a success response
+            let result = VerificationResult {
+                status: "success".to_string(),
+                reason: None,
+                message: None,
+            };
+
+            if result.status == "success" {
+                if let Some(email) = &self.get_email_params(req).email {
+                    self.send_verification_instructions(&mut *user, Some(email), None)?;
+                }
+            } else {
+                self.handle_verification_failure(
+                    &user,
+                    result.reason.as_deref(),
+                    result.message.as_deref(),
+                )?;
+            }
+
+            return self.render_json(result);
+        }
+
+        Ok(HttpResponse::Ok().finish())
+    }
+
+    fn successful_verification(&self, req: &HttpRequest) -> Result<HttpResponse> {
+        self.get_session().remove("verification_user_id");
+
+        // In a real implementation, this would get the current user and redirect
+        // For now, we'll just return a success response
+        Ok(HttpResponse::Ok().finish())
+    }
+
+    fn find_user(&self, req: &HttpRequest) -> Option<Arc<dyn User>> {
+        // This would be implemented by the concrete class
+        None
+    }
+
+    fn verification_email(&self, user: &dyn User) -> String {
+        user.email().to_string()
+    }
+
+    fn unconfirmed_verification_email(&self, user: &dyn User) -> bool {
+        !user.is_confirmed()
+    }
+
+    fn two_factor_enabled(&self) -> bool {
+        // This would be implemented by the concrete class
+        false
+    }
+
+    fn is_qa_request(&self, user_agent: Option<&str>) -> bool {
+        // This would be implemented by the concrete class
+        false
+    }
+
+    fn authentication_method(&self) -> &str {
+        // This would be implemented by the concrete class
+        "email"
+    }
+
+    fn sign_in(&self, user: &dyn User) {
+        // This would be implemented by the concrete class
+    }
+
+    fn log_audit_event(&self, current_user: &dyn User, user: &dyn User, auth_method: &str) {
+        // This would be implemented by the concrete class
+    }
+
+    fn log_user_activity(&self, user: &dyn User) {
+        // This would be implemented by the concrete class
+    }
+
+    fn verify_known_sign_in(&self) {
+        // This would be implemented by the concrete class
+    }
+
+    fn after_sign_in_path(&self, user: &dyn User) -> String {
+        // This would be implemented by the concrete class
+        "/".to_string()
+    }
+
+    fn get_session(&self) -> &dyn Session {
+        // This would be implemented by the concrete class
+        unimplemented!("get_session must be implemented")
+    }
+
+    fn set_session_value(&self, key: &str, value: i64) {
+        // This would be implemented by the concrete class
+    }
+
+    fn remove_session_value(&self, key: &str) {
+        // This would be implemented by the concrete class
+    }
+
+    fn get_request_ip(&self, req: &HttpRequest) -> String {
+        // This would be implemented by the concrete class
+        "127.0.0.1".to_string()
+    }
+
+    fn get_user_agent(&self, req: &HttpRequest) -> Option<String> {
+        // This would be implemented by the concrete class
+        None
+    }
+
+    fn get_user_params(&self, req: &HttpRequest) -> UserParams {
+        // This would be implemented by the concrete class
+        UserParams { password: None }
+    }
+
+    fn get_verification_params(&self, req: &HttpRequest) -> VerificationParams {
+        // This would be implemented by the concrete class
+        VerificationParams {
+            verification_token: None,
+        }
+    }
+
+    fn get_email_params(&self, req: &HttpRequest) -> EmailParams {
+        // This would be implemented by the concrete class
+        EmailParams { email: None }
+    }
+
+    fn render_json(&self, data: impl Serialize) -> Result<HttpResponse> {
+        // This would be implemented by the concrete class
+        Ok(HttpResponse::Ok().json(data))
+    }
+
+    fn render_template(&self, template: &str, data: impl Serialize) -> Result<HttpResponse> {
+        // This would be implemented by the concrete class
+        Ok(HttpResponse::Ok().finish())
+    }
+
+    fn redirect_to(&self, path: &str, message: Option<&str>) -> Result<HttpResponse> {
+        // This would be implemented by the concrete class
+        Ok(HttpResponse::Found().header("Location", path).finish())
+    }
+
+    fn format_time_interval(&self, seconds: i64) -> String {
+        // This would be implemented by the concrete class
+        format!("{} seconds", seconds)
+    }
 }

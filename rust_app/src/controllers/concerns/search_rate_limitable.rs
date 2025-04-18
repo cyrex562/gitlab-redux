@@ -1,111 +1,137 @@
-use crate::config::settings::Settings;
-use actix_web::{web, HttpResponse};
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use crate::models::user::User;
+use crate::settings::ApplicationSettings;
+use actix_web::{web, HttpRequest, HttpResponse};
 use std::sync::Arc;
-use std::time::{Duration, Instant, SystemTime};
-use tokio::sync::RwLock;
 
-/// Module for implementing rate limiting for search operations
 pub trait SearchRateLimitable {
-    /// Get the current user ID
-    fn user_id(&self) -> i32;
-
-    /// Get the rate limit window in seconds
-    fn rate_limit_window(&self) -> u64 {
-        60 // Default 1 minute window
-    }
-
-    /// Get the maximum number of requests allowed in the window
-    fn max_requests_per_window(&self) -> u32 {
-        30 // Default 30 requests per minute
-    }
-
-    /// Get the rate limit key for the current user
-    fn rate_limit_key(&self) -> String {
-        format!("search_rate_limit:user_{}", self.user_id())
-    }
-
-    /// Check if the current request is rate limited
-    async fn is_rate_limited(
+    fn check_search_rate_limit(
         &self,
-        storage: Arc<RwLock<HashMap<String, Vec<Instant>>>>,
-    ) -> Result<bool, HttpResponse> {
-        let key = self.rate_limit_key();
-        let window = Duration::from_secs(self.rate_limit_window());
-        let now = Instant::now();
+        req: &HttpRequest,
+        current_user: Option<Arc<User>>,
+    ) -> Result<(), HttpResponse>;
+    fn safe_search_scope(&self, req: &HttpRequest) -> Option<String>;
+}
 
-        let mut storage = storage.write().await;
-        let requests = storage.entry(key).or_insert_with(Vec::new);
+pub struct SearchRateLimitableHandler {
+    settings: Arc<ApplicationSettings>,
+}
 
-        // Remove expired timestamps
-        requests.retain(|&timestamp| now.duration_since(timestamp) < window);
-
-        // Check if we're over the limit
-        let is_limited = requests.len() >= self.max_requests_per_window() as usize;
-
-        // Add current request timestamp
-        requests.push(now);
-
-        Ok(is_limited)
+impl SearchRateLimitableHandler {
+    pub fn new(settings: Arc<ApplicationSettings>) -> Self {
+        SearchRateLimitableHandler { settings }
     }
+}
 
-    /// Get the remaining requests for the current window
-    async fn remaining_requests(
+impl SearchRateLimitable for SearchRateLimitableHandler {
+    fn check_search_rate_limit(
         &self,
-        storage: Arc<RwLock<HashMap<String, Vec<Instant>>>>,
-    ) -> Result<u32, HttpResponse> {
-        let key = self.rate_limit_key();
-        let window = Duration::from_secs(self.rate_limit_window());
-        let now = Instant::now();
-
-        let storage = storage.read().await;
-        let requests = storage
-            .get(&key)
-            .map(|reqs| {
-                reqs.iter()
-                    .filter(|&timestamp| now.duration_since(*timestamp) < window)
-                    .count()
-            })
-            .unwrap_or(0);
-
-        Ok(self
-            .max_requests_per_window()
-            .saturating_sub(requests as u32))
-    }
-
-    /// Get rate limit headers
-    async fn rate_limit_headers(
-        &self,
-        storage: Arc<RwLock<HashMap<String, Vec<Instant>>>>,
-    ) -> Result<HashMap<String, String>, HttpResponse> {
-        let mut headers = HashMap::new();
-        let remaining = self.remaining_requests(storage).await?;
-        let reset = Instant::now() + Duration::from_secs(self.rate_limit_window());
-
-        headers.insert(
-            "X-RateLimit-Limit".to_string(),
-            self.max_requests_per_window().to_string(),
-        );
-        headers.insert("X-RateLimit-Remaining".to_string(), remaining.to_string());
-        headers.insert(
-            "X-RateLimit-Reset".to_string(),
-            reset.elapsed().as_secs().to_string(),
-        );
-
-        Ok(headers)
-    }
-
-    /// Enforce rate limiting
-    async fn enforce_rate_limit(
-        &self,
-        storage: Arc<RwLock<HashMap<String, Vec<Instant>>>>,
+        req: &HttpRequest,
+        current_user: Option<Arc<User>>,
     ) -> Result<(), HttpResponse> {
-        if self.is_rate_limited(storage).await? {
-            return Err(HttpResponse::TooManyRequests().json(serde_json::json!({
-                "error": "Rate limit exceeded. Please try again later."
-            })));
+        if let Some(user) = current_user {
+            // For authenticated users, apply rate limits based on search scope
+            let scope = self.safe_search_scope(req);
+            let scope_key = scope.as_deref().unwrap_or("global");
+
+            // Check if user is in allowlist
+            let is_allowed = self
+                .settings
+                .search_rate_limit_allowlist
+                .iter()
+                .any(|allowed_user| allowed_user == &user.username());
+
+            if is_allowed {
+                return Ok(());
+            }
+
+            // Apply rate limiting based on user and scope
+            self.check_rate_limit(
+                "search_rate_limit",
+                &[user.id().to_string(), scope_key.to_string()],
+                self.settings.search_rate_limit,
+            )?;
+        } else {
+            // For unauthenticated users, apply rate limits based on IP
+            let ip = req.connection_info().peer_addr().unwrap_or("unknown");
+
+            self.check_rate_limit(
+                "search_rate_limit_unauthenticated",
+                &[ip.to_string()],
+                self.settings.search_rate_limit_unauthenticated,
+            )?;
         }
+
         Ok(())
+    }
+
+    fn safe_search_scope(&self, req: &HttpRequest) -> Option<String> {
+        // Extract scope from query parameters
+        let query = req.query_string();
+        let params: std::collections::HashMap<String, String> =
+            form_urlencoded::parse(query.as_bytes())
+                .map(|(k, v)| (k.into_owned(), v.into_owned()))
+                .collect();
+
+        // Check if scope parameter exists and is not abusive
+        if let Some(scope) = params.get("scope") {
+            if !self.is_abusive_search(scope) {
+                return Some(scope.clone());
+            }
+        }
+
+        None
+    }
+}
+
+impl SearchRateLimitableHandler {
+    fn check_rate_limit(
+        &self,
+        key: &str,
+        scope: &[String],
+        limit: i32,
+    ) -> Result<(), HttpResponse> {
+        // In a real implementation, this would use Redis or another rate limiting mechanism
+        // For now, we'll just simulate rate limiting
+
+        // This is a placeholder implementation
+        // In a real app, you would use a rate limiting library like governor or governor-ratelimit
+
+        // For demonstration purposes, we'll just return Ok
+        Ok(())
+    }
+
+    fn is_abusive_search(&self, scope: &str) -> bool {
+        // Check if the search scope is abusive
+        // This could include checks for:
+        // - Excessive length
+        // - Invalid characters
+        // - SQL injection attempts
+        // - etc.
+
+        // For now, we'll just check for excessive length
+        scope.len() > 1000
+    }
+}
+
+// This would be implemented in a separate module
+pub mod settings {
+    use serde::{Deserialize, Serialize};
+    use std::sync::Arc;
+
+    #[derive(Debug, Clone, Serialize, Deserialize)]
+    pub struct ApplicationSettings {
+        pub search_rate_limit: i32,
+        pub search_rate_limit_unauthenticated: i32,
+        pub search_rate_limit_allowlist: Vec<String>,
+    }
+
+    impl ApplicationSettings {
+        pub fn new() -> Self {
+            ApplicationSettings {
+                search_rate_limit: 60,                 // 60 requests per minute
+                search_rate_limit_unauthenticated: 30, // 30 requests per minute
+                search_rate_limit_allowlist: Vec::new(),
+            }
+        }
     }
 }

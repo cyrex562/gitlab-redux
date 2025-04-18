@@ -1,76 +1,82 @@
-use actix_web::{HttpRequest, HttpResponse};
-use serde::Serialize;
-
-pub struct DiffFile {
-    // Add diff file fields as needed
-}
-
-#[derive(Serialize)]
-pub struct DiffFileMetadata {
-    // Add metadata fields as needed
-}
-
-pub struct DiffFileMetadataEntity;
-
-impl DiffFileMetadataEntity {
-    pub fn represent(files: Vec<DiffFile>) -> Vec<DiffFileMetadata> {
-        // Implementation would depend on your entity representation logic
-        Vec::new()
-    }
-}
+use crate::{
+    config::Settings,
+    models::{DiffFile, DiffResource},
+    utils::feature_flags::Feature,
+};
+use actix_web::{error::Error, web::Json, HttpResponse};
+use serde_json::Value;
 
 pub trait RapidDiffsResource {
     fn diffs_stream_url(
         &self,
-        resource: &impl DiffsResource,
+        resource: &dyn DiffResource,
+        offset: Option<usize>,
+        diff_view: Option<&str>,
+    ) -> Option<String>;
+    fn diff_files_metadata(&self) -> Result<HttpResponse, Error>;
+}
+
+pub struct RapidDiffsResourceImpl {
+    settings: Settings,
+}
+
+impl RapidDiffsResourceImpl {
+    pub fn new(settings: Settings) -> Self {
+        Self { settings }
+    }
+
+    fn rapid_diffs_enabled(&self) -> bool {
+        Feature::enabled("rapid_diffs", None, Some("wip"))
+    }
+}
+
+impl RapidDiffsResource for RapidDiffsResourceImpl {
+    fn diffs_stream_url(
+        &self,
+        resource: &dyn DiffResource,
         offset: Option<usize>,
         diff_view: Option<&str>,
     ) -> Option<String> {
         if let Some(offset) = offset {
-            if offset > resource.diffs_for_streaming().diff_files().len() {
+            if offset > resource.diffs_for_streaming().diff_files().count() {
                 return None;
             }
         }
-
         self.diffs_stream_resource_url(resource, offset, diff_view)
     }
 
-    fn diff_files_metadata(&self, req: &HttpRequest) -> HttpResponse {
+    fn diff_files_metadata(&self) -> Result<HttpResponse, Error> {
         if !self.rapid_diffs_enabled() {
-            return HttpResponse::NotFound().finish();
+            return Ok(HttpResponse::NotFound().finish());
         }
 
-        let diffs_resource = self.diffs_resource();
+        let diffs_resource = self.diffs_resource()?;
         if diffs_resource.is_none() {
-            return HttpResponse::NotFound().finish();
+            return Ok(HttpResponse::NotFound().finish());
         }
 
         let diffs_resource = diffs_resource.unwrap();
-        HttpResponse::Ok().json(serde_json::json!({
-            "diff_files": DiffFileMetadataEntity::represent(diffs_resource.raw_diff_files(true))
-        }))
+        let diff_files = diffs_resource.raw_diff_files(true);
+
+        Ok(HttpResponse::Ok().json(serde_json::json!({
+            "diff_files": diff_files
+        })))
+    }
+}
+
+impl RapidDiffsResourceImpl {
+    fn diffs_resource(&self) -> Result<Option<Box<dyn DiffResource>>, Error> {
+        Err(actix_web::error::ErrorNotImplemented(
+            "diffs_resource not implemented",
+        ))
     }
 
-    fn rapid_diffs_enabled(&self) -> bool {
-        // Implementation would depend on your feature flag system
-        true
-    }
-
-    // Required methods to be implemented by concrete types
-    fn diffs_resource(&self) -> Option<&dyn DiffsResource>;
     fn diffs_stream_resource_url(
         &self,
-        resource: &impl DiffsResource,
+        resource: &dyn DiffResource,
         offset: Option<usize>,
         diff_view: Option<&str>,
-    ) -> Option<String>;
-}
-
-pub trait DiffsResource {
-    fn diffs_for_streaming(&self) -> &dyn DiffsCollection;
-    fn raw_diff_files(&self, sorted: bool) -> Vec<DiffFile>;
-}
-
-pub trait DiffsCollection {
-    fn diff_files(&self) -> &[DiffFile];
+    ) -> Option<String> {
+        None // To be implemented by concrete implementations
+    }
 }

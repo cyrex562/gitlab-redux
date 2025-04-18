@@ -1,177 +1,103 @@
-use actix_web::{web, HttpResponse};
-use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use crate::models::user::User;
+use crate::services::notification::NotificationService;
+use crate::utils::visitor_location::VisitorLocation;
+use actix_web::{web, HttpRequest};
+use chrono::{DateTime, Duration, Utc};
+use cookie::Cookie;
+use std::collections::HashSet;
 
-/// Module for handling known sign-ins
+pub const KNOWN_SIGN_IN_COOKIE: &str = "known_sign_in";
+const KNOWN_SIGN_IN_COOKIE_EXPIRY_DAYS: i64 = 14;
+
 pub trait KnownSignIn {
-    /// Get the user ID
-    fn user_id(&self) -> i32;
+    fn verify_known_sign_in(&self, user: &User, request: &HttpRequest) -> Option<Cookie<'static>>;
+    fn known_remote_ip(&self, user: &User, request: &HttpRequest) -> bool;
+    fn known_device(&self, user: &User, request: &HttpRequest) -> bool;
+    fn update_cookie(&self, user: &User) -> Cookie<'static>;
+    fn notify_user(&self, user: &User, request: &HttpRequest);
+}
 
-    /// Get the IP address
-    fn ip_address(&self) -> String;
+pub struct KnownSignInImpl {
+    notification_service: NotificationService,
+    settings: web::Data<crate::config::Settings>,
+}
 
-    /// Get the user agent
-    fn user_agent(&self) -> String;
+impl KnownSignInImpl {
+    pub fn new(
+        notification_service: NotificationService,
+        settings: web::Data<crate::config::Settings>,
+    ) -> Self {
+        Self {
+            notification_service,
+            settings,
+        }
+    }
+}
 
-    /// Get the sign in time
-    fn sign_in_time(&self) -> DateTime<Utc>;
+impl KnownSignIn for KnownSignInImpl {
+    fn verify_known_sign_in(&self, user: &User, request: &HttpRequest) -> Option<Cookie<'static>> {
+        if !self.settings.notify_on_unknown_sign_in || user.is_none() {
+            return None;
+        }
 
-    /// Get the device name
-    fn device_name(&self) -> Option<String> {
-        None
+        if !self.known_device(user, request) && !self.known_remote_ip(user, request) {
+            self.notify_user(user, request);
+        }
+
+        Some(self.update_cookie(user))
     }
 
-    /// Get the location
-    fn location(&self) -> Option<String> {
-        None
+    fn known_remote_ip(&self, user: &User, request: &HttpRequest) -> bool {
+        let known_ips: HashSet<String> = user
+            .sessions()
+            .iter()
+            .filter(|s| !s.is_impersonated())
+            .map(|s| s.ip_address.clone())
+            .chain(std::iter::once(user.last_sign_in_ip.clone()))
+            .collect();
+
+        known_ips.contains(
+            &request
+                .connection_info()
+                .peer_addr()
+                .unwrap_or_default()
+                .to_string(),
+        )
     }
 
-    /// Get the browser
-    fn browser(&self) -> Option<String> {
-        None
+    fn known_device(&self, user: &User, request: &HttpRequest) -> bool {
+        request
+            .cookies()
+            .get(KNOWN_SIGN_IN_COOKIE)
+            .and_then(|c| c.value().parse::<i64>().ok())
+            .map_or(false, |id| id == user.id)
     }
 
-    /// Get the operating system
-    fn operating_system(&self) -> Option<String> {
-        None
+    fn update_cookie(&self, user: &User) -> Cookie<'static> {
+        let expiry = Utc::now() + Duration::days(KNOWN_SIGN_IN_COOKIE_EXPIRY_DAYS);
+
+        Cookie::build(KNOWN_SIGN_IN_COOKIE, user.id.to_string())
+            .secure(true)
+            .http_only(true)
+            .expires(expiry)
+            .path("/")
+            .finish()
     }
 
-    /// Get the device type
-    fn device_type(&self) -> Option<String> {
-        None
-    }
+    fn notify_user(&self, user: &User, request: &HttpRequest) {
+        let visitor_location = VisitorLocation::new(request);
+        let remote_ip = request
+            .connection_info()
+            .peer_addr()
+            .unwrap_or_default()
+            .to_string();
+        let current_sign_in_at = Utc::now();
 
-    /// Get the sign in status
-    fn sign_in_status(&self) -> String {
-        "success".to_string()
-    }
-
-    /// Get the failure reason
-    fn failure_reason(&self) -> Option<String> {
-        None
-    }
-
-    /// Record a known sign in
-    fn record_known_sign_in(&self) -> Result<(), HttpResponse> {
-        // TODO: Implement sign in recording logic
-        // This would typically involve:
-        // 1. Validating the sign in data
-        // 2. Storing the sign in record in the database
-        // 3. Updating any relevant user metadata
-        // 4. Triggering any necessary notifications
-
-        Ok(())
-    }
-
-    /// Get known sign ins for a user
-    fn get_known_sign_ins(
-        &self,
-        user_id: i32,
-    ) -> Result<Vec<HashMap<String, serde_json::Value>>, HttpResponse> {
-        // TODO: Implement sign in retrieval logic
-        // This would typically involve:
-        // 1. Querying the database for sign in records
-        // 2. Formatting the results into a consistent structure
-        // 3. Including relevant metadata about each sign in
-
-        Ok(Vec::new())
-    }
-
-    /// Check if a sign in is known
-    fn is_known_sign_in(&self) -> Result<bool, HttpResponse> {
-        // TODO: Implement sign in checking logic
-        // This would typically involve:
-        // 1. Checking if the IP address is known
-        // 2. Checking if the user agent matches
-        // 3. Checking if the device is recognized
-        // 4. Checking any other relevant factors
-
-        Ok(false)
-    }
-
-    /// Get sign in metadata
-    fn get_sign_in_metadata(&self) -> Result<HashMap<String, serde_json::Value>, HttpResponse> {
-        let mut metadata = HashMap::new();
-
-        metadata.insert("user_id".to_string(), serde_json::json!(self.user_id()));
-        metadata.insert(
-            "ip_address".to_string(),
-            serde_json::json!(self.ip_address()),
+        self.notification_service.unknown_sign_in(
+            user,
+            remote_ip,
+            current_sign_in_at,
+            visitor_location,
         );
-        metadata.insert(
-            "user_agent".to_string(),
-            serde_json::json!(self.user_agent()),
-        );
-        metadata.insert(
-            "sign_in_time".to_string(),
-            serde_json::json!(self.sign_in_time()),
-        );
-        metadata.insert(
-            "sign_in_status".to_string(),
-            serde_json::json!(self.sign_in_status()),
-        );
-
-        if let Some(device_name) = self.device_name() {
-            metadata.insert("device_name".to_string(), serde_json::json!(device_name));
-        }
-
-        if let Some(location) = self.location() {
-            metadata.insert("location".to_string(), serde_json::json!(location));
-        }
-
-        if let Some(browser) = self.browser() {
-            metadata.insert("browser".to_string(), serde_json::json!(browser));
-        }
-
-        if let Some(operating_system) = self.operating_system() {
-            metadata.insert(
-                "operating_system".to_string(),
-                serde_json::json!(operating_system),
-            );
-        }
-
-        if let Some(device_type) = self.device_type() {
-            metadata.insert("device_type".to_string(), serde_json::json!(device_type));
-        }
-
-        if let Some(failure_reason) = self.failure_reason() {
-            metadata.insert(
-                "failure_reason".to_string(),
-                serde_json::json!(failure_reason),
-            );
-        }
-
-        Ok(metadata)
-    }
-
-    /// Validate sign in data
-    fn validate_sign_in_data(&self) -> Result<(), HttpResponse> {
-        if self.ip_address().is_empty() {
-            return Err(HttpResponse::BadRequest().json(serde_json::json!({
-                "error": "IP address is required"
-            })));
-        }
-
-        if self.user_agent().is_empty() {
-            return Err(HttpResponse::BadRequest().json(serde_json::json!({
-                "error": "User agent is required"
-            })));
-        }
-
-        let status = self.sign_in_status();
-        if !["success", "failure"].contains(&status.as_str()) {
-            return Err(HttpResponse::BadRequest().json(serde_json::json!({
-                "error": format!("Invalid sign in status: {}", status)
-            })));
-        }
-
-        if status == "failure" && self.failure_reason().is_none() {
-            return Err(HttpResponse::BadRequest().json(serde_json::json!({
-                "error": "Failure reason is required for failed sign ins"
-            })));
-        }
-
-        Ok(())
     }
 }

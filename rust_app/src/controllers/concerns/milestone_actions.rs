@@ -1,80 +1,104 @@
-use actix_web::{web, HttpResponse, Responder};
+use crate::models::issue::Issue;
+use crate::models::label::Label;
+use crate::models::merge_request::MergeRequest;
+use crate::models::milestone::Milestone;
+use crate::models::user::User;
+use crate::utils::boolean::to_boolean;
+use actix_web::{web, HttpRequest, HttpResponse, Responder};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Issue {
-    pub id: i32,
-    pub title: String,
-    pub project_id: i32,
-    pub project_name: Option<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct MergeRequest {
-    pub id: i32,
-    pub title: String,
-    pub project_id: i32,
-    pub project_name: Option<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct User {
-    pub id: i32,
-    pub name: String,
-    pub username: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Label {
-    pub id: i32,
-    pub title: String,
-    pub color: String,
-    pub description: Option<String>,
-}
 
 pub trait MilestoneActions {
-    fn issues(&self, milestone_id: i32, show_project_name: bool) -> impl Responder {
-        let issues = self.get_sorted_issues(milestone_id);
-        let data = HashMap::from([
-            ("issues", issues),
-            ("show_project_name", show_project_name),
-        ]);
-        self.render_tab("shared/milestones/_issues_tab", data)
+    fn issues(&self, req: HttpRequest) -> impl Responder;
+    fn merge_requests(&self, req: HttpRequest) -> impl Responder;
+    fn participants(&self, req: HttpRequest) -> impl Responder;
+    fn labels(&self, req: HttpRequest) -> impl Responder;
+}
+
+pub struct MilestoneActionsImpl {
+    milestone: Milestone,
+    current_user: User,
+}
+
+impl MilestoneActionsImpl {
+    pub fn new(milestone: Milestone, current_user: User) -> Self {
+        Self {
+            milestone,
+            current_user,
+        }
     }
 
-    fn merge_requests(&self, milestone_id: i32, show_project_name: bool) -> impl Responder {
-        let merge_requests = self.get_sorted_merge_requests(milestone_id);
-        let data = HashMap::from([
-            ("merge_requests", merge_requests),
-            ("show_project_name", show_project_name),
-        ]);
-        self.render_tab("shared/milestones/_merge_requests_tab", data)
+    fn tabs_json(&self, partial: &str, data: serde_json::Value) -> serde_json::Value {
+        serde_json::json!({
+            "html": self.view_to_html_string(partial, data)
+        })
     }
 
-    fn participants(&self, milestone_id: i32) -> impl Responder {
-        let users = self.get_issue_participants(milestone_id);
-        let data = HashMap::from([("users", users)]);
-        self.render_tab("shared/milestones/_participants_tab", data)
+    fn view_to_html_string(&self, partial: &str, data: serde_json::Value) -> String {
+        // Implementation depends on your template engine
+        // This is a placeholder that should be replaced with actual template rendering
+        format!("Rendered {} with data: {:?}", partial, data)
     }
 
-    fn labels(&self, milestone_id: i32) -> impl Responder {
-        let labels = self.get_issue_labels(milestone_id);
-        let data = HashMap::from([("labels", labels)]);
-        self.render_tab("shared/milestones/_labels_tab", data)
+    fn milestone_redirect_path(&self) -> String {
+        format!("/milestones/{}", self.milestone.id)
+    }
+}
+
+impl MilestoneActions for MilestoneActionsImpl {
+    fn issues(&self, req: HttpRequest) -> impl Responder {
+        let show_project_name = to_boolean(
+            req.query_string()
+                .get("show_project_name")
+                .unwrap_or("false"),
+        );
+
+        HttpResponse::Ok().json(self.tabs_json(
+            "shared/milestones/_issues_tab",
+            serde_json::json!({
+                "issues": self.milestone.sorted_issues(&self.current_user),
+                "show_project_name": show_project_name
+            }),
+        ))
     }
 
-    // Required methods to be implemented by concrete types
-    fn get_sorted_issues(&self, milestone_id: i32) -> Vec<Issue>;
-    fn get_sorted_merge_requests(&self, milestone_id: i32) -> Vec<MergeRequest>;
-    fn get_issue_participants(&self, milestone_id: i32) -> Vec<User>;
-    fn get_issue_labels(&self, milestone_id: i32) -> Vec<Label>;
-    fn render_tab(&self, template: &str, data: HashMap<&str, serde_json::Value>) -> HttpResponse;
-    fn milestone_redirect_path(&self) -> String;
+    fn merge_requests(&self, req: HttpRequest) -> impl Responder {
+        let show_project_name = to_boolean(
+            req.query_string()
+                .get("show_project_name")
+                .unwrap_or("false"),
+        );
 
-    // Helper method for JSON responses
-    fn tabs_json(&self, template: &str, data: HashMap<&str, serde_json::Value>) -> HttpResponse {
-        let html = self.render_tab(template, data);
-        HttpResponse::Ok().json(HashMap::from([("html", html)]))
+        HttpResponse::Ok().json(self.tabs_json(
+            "shared/milestones/_merge_requests_tab",
+            serde_json::json!({
+                "merge_requests": self.milestone.sorted_merge_requests(&this.current_user)
+                    .preload_milestoneish_associations(),
+                "show_project_name": show_project_name
+            }),
+        ))
     }
-} 
+
+    fn participants(&self, _req: HttpRequest) -> impl Responder {
+        HttpResponse::Ok().json(self.tabs_json(
+            "shared/milestones/_participants_tab",
+            serde_json::json!({
+                "users": this.milestone.issue_participants_visible_by_user(&this.current_user)
+            }),
+        ))
+    }
+
+    fn labels(&self, _req: HttpRequest) -> impl Responder {
+        let milestone_labels = this
+            .milestone
+            .issue_labels_visible_by_user(&this.current_user);
+
+        HttpResponse::Ok().json(self.tabs_json(
+            "shared/milestones/_labels_tab",
+            serde_json::json!({
+                "labels": milestone_labels.iter().map(|label| {
+                    label.present(issuable_subject: &this.milestone.resource_parent)
+                }).collect::<Vec<_>>()
+            }),
+        ))
+    }
+}

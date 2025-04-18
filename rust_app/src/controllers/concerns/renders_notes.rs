@@ -1,98 +1,73 @@
-use std::collections::HashMap;
+use actix_web::{web, HttpRequest, HttpResponse};
+use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
-pub struct Note {
-    pub author_id: i32,
-    pub namespace: Option<Namespace>,
-    pub noteable: Option<Noteable>,
-    pub author: Option<Author>,
-}
-
-pub struct Namespace {
-    // Add namespace fields as needed
-}
-
-pub struct Noteable {
-    // Add noteable fields as needed
-}
-
-pub struct Author {
-    pub status: Option<String>,
-    // Add other author fields as needed
-}
-
-pub struct Project {
-    pub team: Team,
-}
-
-pub struct Team {
-    // Add team fields as needed
-}
-
-pub struct RenderService;
-
-impl RenderService {
-    pub fn new(user: &User) -> Self {
-        RenderService
-    }
-
-    pub fn execute(&self, notes: &[Note]) {
-        // Implementation for rendering notes
-    }
-}
-
+/// This trait provides functionality for rendering notes in controllers
 pub trait RendersNotes {
-    fn prepare_notes_for_rendering(&self, notes: &[Note], project: &Project) -> Vec<Note> {
-        let mut prepared_notes = notes.to_vec();
+    /// Render notes for the current request
+    fn render_notes(&self, req: &HttpRequest) -> HttpResponse;
+}
 
-        self.preload_noteable_for_regular_notes(&mut prepared_notes);
-        self.preload_note_namespace(&mut prepared_notes);
-        self.preload_max_access_for_authors(&mut prepared_notes, project);
-        self.preload_author_status(&mut prepared_notes);
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Note {
+    id: i32,
+    note: String,
+    noteable_id: i32,
+    noteable_type: String,
+    author_id: i32,
+    created_at: String,
+    updated_at: String,
+    position: Option<i32>,
+    resolved: bool,
+    resolved_by_id: Option<i32>,
+    resolved_at: Option<String>,
+}
 
-        RenderService::new(self.get_current_user()).execute(&prepared_notes);
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RendersNotesHandler {
+    current_user: Option<Arc<User>>,
+}
 
-        prepared_notes
+impl RendersNotesHandler {
+    pub fn new(current_user: Option<Arc<User>>) -> Self {
+        RendersNotesHandler { current_user }
     }
-
-    fn preload_note_namespace(&self, notes: &mut [Note]) {
-        // Implementation would depend on your ORM/database layer
-        // This is a placeholder for the preloading logic
+    
+    fn fetch_notes(&self, noteable_id: i32, noteable_type: &str) -> Vec<Note> {
+        // This would be implemented to fetch notes from the database
+        // For now, we'll return an empty vector
+        Vec::new()
     }
+}
 
-    fn preload_max_access_for_authors(&self, notes: &[Note], project: &Project) {
-        if let Some(team) = &project.team {
-            let user_ids: Vec<i32> = notes.iter().map(|note| note.author_id).collect();
-            let access = team.max_member_access_for_user_ids(&user_ids);
-            let no_access_users: Vec<i32> = access
-                .iter()
-                .filter(|(_, &level)| level == 0)
-                .map(|(&id, _)| id)
-                .collect();
-            team.contribution_check_for_user_ids(&no_access_users);
+impl RendersNotes for RendersNotesHandler {
+    fn render_notes(&self, req: &HttpRequest) -> HttpResponse {
+        // Check if user is authenticated
+        if self.current_user.is_none() {
+            return HttpResponse::Unauthorized().finish();
         }
-    }
-
-    fn preload_noteable_for_regular_notes(&self, notes: &mut [Note]) {
-        // Implementation would depend on your ORM/database layer
-        // This is a placeholder for the preloading logic
-    }
-
-    fn preload_author_status(&self, notes: &mut [Note]) {
-        // Implementation would depend on your ORM/database layer
-        // This is a placeholder for the preloading logic
-    }
-
-    // Required methods to be implemented by concrete types
-    fn get_current_user(&self) -> &User;
-}
-
-impl Team {
-    pub fn max_member_access_for_user_ids(&self, user_ids: &[i32]) -> HashMap<i32, i32> {
-        // Implementation would depend on your access control system
-        user_ids.iter().map(|&id| (id, 0)).collect()
-    }
-
-    pub fn contribution_check_for_user_ids(&self, user_ids: &[i32]) {
-        // Implementation would depend on your contribution checking system
+        
+        // Get noteable ID and type from request
+        let noteable_id = req.match_info().get("noteable_id")
+            .and_then(|s| s.parse::<i32>().ok())
+            .unwrap_or(0);
+            
+        let noteable_type = req.match_info().get("noteable_type")
+            .map(|s| s.to_string())
+            .unwrap_or_default();
+            
+        // Fetch notes
+        let notes = self.fetch_notes(noteable_id, &noteable_type);
+        
+        // Render notes as JSON
+        HttpResponse::Ok()
+            .content_type("application/json")
+            .json(notes)
     }
 }
+
+// This would be implemented in a separate module
+pub struct User {
+    id: i32,
+    // Add other fields as needed
+} 

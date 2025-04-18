@@ -1,196 +1,213 @@
-use actix_web::{web, HttpResponse};
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use crate::{
+    models::{Issue, MergeRequest, Project, User},
+    services::{issues::IssuesService, merge_requests::MergeRequestsService},
+    utils::{pagination::PaginationHelper, sorting::SortingHelper},
+};
+use actix_web::{web, Error, HttpResponse};
+use std::sync::Arc;
 
-/// Module for handling issuable collections actions
 pub trait IssuableCollectionsAction {
-    /// Get the collection type (issues, merge_requests, etc.)
-    fn collection_type(&self) -> String;
+    fn issues(
+        &self,
+        project: &Project,
+        user: &User,
+        params: web::Query<IssuableParams>,
+    ) -> Result<HttpResponse, Error>;
 
-    /// Get the collection scope
-    fn collection_scope(&self) -> String {
-        "all".to_string()
-    }
+    fn merge_requests(
+        &self,
+        project: &Project,
+        user: &User,
+        params: web::Query<IssuableParams>,
+    ) -> Result<HttpResponse, Error>;
 
-    /// Get the collection state
-    fn collection_state(&self) -> String {
-        "opened".to_string()
-    }
+    fn issues_calendar(
+        &self,
+        project: &Project,
+        user: &User,
+        params: web::Query<IssuableParams>,
+    ) -> Result<HttpResponse, Error>;
+}
 
-    /// Get the collection sort
-    fn collection_sort(&self) -> String {
-        "created_desc".to_string()
-    }
+#[derive(serde::Deserialize)]
+pub struct IssuableParams {
+    pub state: Option<String>,
+    pub sort: Option<String>,
+    pub order_by: Option<String>,
+    pub search: Option<String>,
+    pub milestone_title: Option<String>,
+    pub label_name: Option<Vec<String>>,
+    pub assignee_username: Option<String>,
+    pub author_username: Option<String>,
+    pub scope: Option<String>,
+    pub page: Option<i32>,
+    pub per_page: Option<i32>,
+}
 
-    /// Get the collection filter params
-    fn collection_filter_params(&self) -> HashMap<String, String> {
-        HashMap::new()
-    }
+pub struct IssuableCollectionsActionImpl {
+    issues_service: Arc<IssuesService>,
+    merge_requests_service: Arc<MergeRequestsService>,
+    sorting_helper: Arc<SortingHelper>,
+    pagination_helper: Arc<PaginationHelper>,
+}
 
-    /// Get the collection search params
-    fn collection_search_params(&self) -> HashMap<String, String> {
-        HashMap::new()
-    }
-
-    /// Get the collection page
-    fn collection_page(&self) -> i32 {
-        1
-    }
-
-    /// Get the collection per page
-    fn collection_per_page(&self) -> i32 {
-        20
-    }
-
-    /// Get the collection labels
-    fn collection_labels(&self) -> Vec<String> {
-        Vec::new()
-    }
-
-    /// Get the collection milestone
-    fn collection_milestone(&self) -> Option<String> {
-        None
-    }
-
-    /// Get the collection assignee
-    fn collection_assignee(&self) -> Option<i32> {
-        None
-    }
-
-    /// Get the collection author
-    fn collection_author(&self) -> Option<i32> {
-        None
-    }
-
-    /// Get the collection search
-    fn collection_search(&self) -> Option<String> {
-        None
-    }
-
-    /// Get the collection in
-    fn collection_in(&self) -> Option<String> {
-        None
-    }
-
-    /// Get the collection created after
-    fn collection_created_after(&self) -> Option<String> {
-        None
-    }
-
-    /// Get the collection created before
-    fn collection_created_before(&self) -> Option<String> {
-        None
-    }
-
-    /// Get the collection updated after
-    fn collection_updated_after(&self) -> Option<String> {
-        None
-    }
-
-    /// Get the collection updated before
-    fn collection_updated_before(&self) -> Option<String> {
-        None
-    }
-
-    /// Get the collection scope
-    fn get_collection_scope(&self) -> Result<String, HttpResponse> {
-        let scope = self.collection_scope();
-        match scope.as_str() {
-            "all" | "assigned_to_me" | "created_by_me" | "mentioned_to_me" => Ok(scope),
-            _ => Err(HttpResponse::BadRequest().json(serde_json::json!({
-                "error": format!("Invalid scope: {}", scope)
-            })))
+impl IssuableCollectionsActionImpl {
+    pub fn new(
+        issues_service: Arc<IssuesService>,
+        merge_requests_service: Arc<MergeRequestsService>,
+        sorting_helper: Arc<SortingHelper>,
+        pagination_helper: Arc<PaginationHelper>,
+    ) -> Self {
+        Self {
+            issues_service,
+            merge_requests_service,
+            sorting_helper,
+            pagination_helper,
         }
     }
 
-    /// Get the collection state
-    fn get_collection_state(&self) -> Result<String, HttpResponse> {
-        let state = self.collection_state();
-        match state.as_str() {
-            "opened" | "closed" | "all" => Ok(state),
-            _ => Err(HttpResponse::BadRequest().json(serde_json::json!({
-                "error": format!("Invalid state: {}", state)
-            })))
+    fn find_issuables(
+        &self,
+        project: &Project,
+        user: &User,
+        params: &IssuableParams,
+        issuable_type: &str,
+    ) -> Result<Vec<Box<dyn Issuable>>, Error> {
+        let state = params.state.as_deref().unwrap_or("opened");
+        let sort = self
+            .sorting_helper
+            .parse_sort(params.sort.as_deref(), params.order_by.as_deref())?;
+
+        match issuable_type {
+            "issue" => {
+                let issues = self.issues_service.list(
+                    project,
+                    user,
+                    state,
+                    &sort,
+                    params.search.as_deref(),
+                    params.milestone_title.as_deref(),
+                    params.label_name.as_deref(),
+                    params.assignee_username.as_deref(),
+                    params.author_username.as_deref(),
+                )?;
+                Ok(issues
+                    .into_iter()
+                    .map(|i| Box::new(i) as Box<dyn Issuable>)
+                    .collect())
+            }
+            "merge_request" => {
+                let merge_requests = self.merge_requests_service.list(
+                    project,
+                    user,
+                    state,
+                    &sort,
+                    params.search.as_deref(),
+                    params.milestone_title.as_deref(),
+                    params.label_name.as_deref(),
+                    params.assignee_username.as_deref(),
+                    params.author_username.as_deref(),
+                )?;
+                Ok(merge_requests
+                    .into_iter()
+                    .map(|mr| Box::new(mr) as Box<dyn Issuable>)
+                    .collect())
+            }
+            _ => Err(actix_web::error::ErrorBadRequest("Invalid issuable type")),
         }
+    }
+}
+
+impl IssuableCollectionsAction for IssuableCollectionsActionImpl {
+    fn issues(
+        &self,
+        project: &Project,
+        user: &User,
+        params: web::Query<IssuableParams>,
+    ) -> Result<HttpResponse, Error> {
+        let issuables = self.find_issuables(project, user, &params, "issue")?;
+        let paginated = self.pagination_helper.paginate(
+            issuables,
+            params.page.unwrap_or(1),
+            params.per_page.unwrap_or(20),
+        )?;
+
+        Ok(HttpResponse::Ok().json(paginated))
     }
 
-    /// Get the collection sort
-    fn get_collection_sort(&self) -> Result<String, HttpResponse> {
-        let sort = self.collection_sort();
-        match sort.as_str() {
-            "created_desc" | "created_asc" | "updated_desc" | "updated_asc" => Ok(sort),
-            _ => Err(HttpResponse::BadRequest().json(serde_json::json!({
-                "error": format!("Invalid sort: {}", sort)
-            })))
-        }
+    fn merge_requests(
+        &self,
+        project: &Project,
+        user: &User,
+        params: web::Query<IssuableParams>,
+    ) -> Result<HttpResponse, Error> {
+        let issuables = self.find_issuables(project, user, &params, "merge_request")?;
+        let paginated = self.pagination_helper.paginate(
+            issuables,
+            params.page.unwrap_or(1),
+            params.per_page.unwrap_or(20),
+        )?;
+
+        Ok(HttpResponse::Ok().json(paginated))
     }
 
-    /// Get the collection filter params
-    fn get_collection_filter_params(&self) -> HashMap<String, String> {
-        let mut params = self.collection_filter_params();
-        
-        if let Some(labels) = self.collection_labels().first() {
-            params.insert("labels".to_string(), labels.clone());
-        }
-        
-        if let Some(milestone) = self.collection_milestone() {
-            params.insert("milestone".to_string(), milestone);
-        }
-        
-        if let Some(assignee) = self.collection_assignee() {
-            params.insert("assignee_id".to_string(), assignee.to_string());
-        }
-        
-        if let Some(author) = self.collection_author() {
-            params.insert("author_id".to_string(), author.to_string());
-        }
-        
-        if let Some(search) = self.collection_search() {
-            params.insert("search".to_string(), search);
-        }
-        
-        if let Some(in_field) = self.collection_in() {
-            params.insert("in".to_string(), in_field);
-        }
-        
-        if let Some(created_after) = self.collection_created_after() {
-            params.insert("created_after".to_string(), created_after);
-        }
-        
-        if let Some(created_before) = self.collection_created_before() {
-            params.insert("created_before".to_string(), created_before);
-        }
-        
-        if let Some(updated_after) = self.collection_updated_after() {
-            params.insert("updated_after".to_string(), updated_after);
-        }
-        
-        if let Some(updated_before) = self.collection_updated_before() {
-            params.insert("updated_before".to_string(), updated_before);
-        }
-        
-        params
-    }
+    fn issues_calendar(
+        &self,
+        project: &Project,
+        user: &User,
+        params: web::Query<IssuableParams>,
+    ) -> Result<HttpResponse, Error> {
+        let issues = self.issues_service.list_for_calendar(
+            project,
+            user,
+            params.milestone_title.as_deref(),
+            params.label_name.as_deref(),
+        )?;
 
-    /// Get the collection search params
-    fn get_collection_search_params(&self) -> HashMap<String, String> {
-        let mut params = self.collection_search_params();
-        params.insert("page".to_string(), self.collection_page().to_string());
-        params.insert("per_page".to_string(), self.collection_per_page().to_string());
-        params
+        Ok(HttpResponse::Ok().json(issues))
     }
+}
 
-    /// Get the collection params
-    fn get_collection_params(&self) -> Result<HashMap<String, String>, HttpResponse> {
-        let mut params = HashMap::new();
-        
-        params.insert("scope".to_string(), self.get_collection_scope()?);
-        params.insert("state".to_string(), self.get_collection_state()?);
-        params.insert("sort".to_string(), self.get_collection_sort()?);
-        
-        params.extend(self.get_collection_filter_params());
-        params.extend(self.get_collection_search_params());
-        
-        Ok(params)
+pub trait Issuable: Send + Sync {
+    fn id(&self) -> i64;
+    fn title(&self) -> &str;
+    fn state(&self) -> &str;
+    fn created_at(&self) -> chrono::DateTime<chrono::Utc>;
+    fn updated_at(&self) -> chrono::DateTime<chrono::Utc>;
+}
+
+impl Issuable for Issue {
+    fn id(&self) -> i64 {
+        self.id
     }
-} 
+    fn title(&self) -> &str {
+        &self.title
+    }
+    fn state(&self) -> &str {
+        &self.state
+    }
+    fn created_at(&self) -> chrono::DateTime<chrono::Utc> {
+        self.created_at
+    }
+    fn updated_at(&self) -> chrono::DateTime<chrono::Utc> {
+        self.updated_at
+    }
+}
+
+impl Issuable for MergeRequest {
+    fn id(&self) -> i64 {
+        self.id
+    }
+    fn title(&self) -> &str {
+        &self.title
+    }
+    fn state(&self) -> &str {
+        &self.state
+    }
+    fn created_at(&self) -> chrono::DateTime<chrono::Utc> {
+        self.created_at
+    }
+    fn updated_at(&self) -> chrono::DateTime<chrono::Utc> {
+        self.updated_at
+    }
+}

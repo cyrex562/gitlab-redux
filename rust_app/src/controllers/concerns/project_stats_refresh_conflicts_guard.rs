@@ -1,42 +1,31 @@
-use actix_web::HttpResponse;
-use log::warn;
-
-pub struct Project {
-    pub id: i32,
-}
-
-impl Project {
-    pub fn refreshing_build_artifacts_size(&self) -> bool {
-        // Implementation would depend on your project state management
-        false
-    }
-}
-
-pub struct ProjectStatsRefreshConflictsLogger;
-
-impl ProjectStatsRefreshConflictsLogger {
-    pub fn warn_request_rejected_during_stats_refresh(project_id: i32) {
-        warn!(
-            "Request rejected during stats refresh for project {}",
-            project_id
-        );
-    }
-}
+use crate::models::Project;
+use crate::utils::logging::ProjectStatsRefreshConflictsLogger;
+use actix_web::{error::Error, HttpResponse};
 
 pub trait ProjectStatsRefreshConflictsGuard {
-    fn reject_if_build_artifacts_size_refreshing(&self, project: &Project) -> Option<HttpResponse> {
+    fn reject_if_build_artifacts_size_refreshing(&self, project: &Project) -> Result<(), Error>;
+}
+
+pub struct ProjectStatsRefreshConflictsGuardImpl;
+
+impl ProjectStatsRefreshConflictsGuardImpl {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+impl ProjectStatsRefreshConflictsGuard for ProjectStatsRefreshConflictsGuardImpl {
+    fn reject_if_build_artifacts_size_refreshing(&self, project: &Project) -> Result<(), Error> {
         if project.refreshing_build_artifacts_size() {
             ProjectStatsRefreshConflictsLogger::warn_request_rejected_during_stats_refresh(
-                project.id,
+                project.id(),
             );
 
-            Some(
-                HttpResponse::Conflict()
-                    .content_type("text/plain")
-                    .body("Action temporarily disabled. The project this pipeline belongs to is undergoing stats refresh.")
-            )
+            Err(actix_web::error::ErrorConflict(
+                "Action temporarily disabled. The project this pipeline belongs to is undergoing stats refresh.".to_string(),
+            ))
         } else {
-            None
+            Ok(())
         }
     }
 }

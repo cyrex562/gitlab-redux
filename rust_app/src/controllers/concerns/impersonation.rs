@@ -1,14 +1,22 @@
-use actix_web::{web, HttpRequest};
+use actix_web::{web, HttpRequest, HttpResponse};
 use once_cell::sync::Lazy;
+use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use crate::config::settings::Settings;
 use crate::models::user::User;
 use crate::utils::logger::AppLogger;
-use crate::utils::session::Session;
 
-/// Session keys that should be deleted during impersonation
+pub trait Impersonation {
+    fn current_user(&self) -> User;
+    fn check_impersonation_availability(&self) -> Result<(), HttpResponse>;
+    fn stop_impersonation(&self) -> User;
+    fn impersonation_in_progress(&self) -> bool;
+    fn log_impersonation_event(&self);
+    fn clear_access_token_session_keys(&self);
+    fn impersonator(&self) -> Option<User>;
+}
+
 static SESSION_KEYS_TO_DELETE: Lazy<HashSet<&'static str>> = Lazy::new(|| {
     let mut set = HashSet::new();
     set.insert("github_access_token");
@@ -23,92 +31,96 @@ static SESSION_KEYS_TO_DELETE: Lazy<HashSet<&'static str>> = Lazy::new(|| {
     set
 });
 
-/// Module for handling user impersonation
-pub trait Impersonation {
-    /// Get the current user with impersonation information
-    fn current_user_with_impersonation(&self) -> Option<Arc<User>> {
-        let mut user = self.current_user()?;
+pub struct ImpersonationImpl {
+    session: web::Data<Session>,
+    config: web::Data<Config>,
+    logger: Arc<AppLogger>,
+}
+
+impl ImpersonationImpl {
+    pub fn new(
+        session: web::Data<Session>,
+        config: web::Data<Config>,
+        logger: Arc<AppLogger>,
+    ) -> Self {
+        Self {
+            session,
+            config,
+            logger,
+        }
+    }
+}
+
+impl Impersonation for ImpersonationImpl {
+    fn current_user(&self) -> User {
+        let mut user = self.session.get_current_user();
 
         if let Some(impersonator) = self.impersonator() {
             user.set_impersonator(impersonator);
         }
 
-        Some(user)
+        user
     }
 
-    /// Check if impersonation is available
-    fn check_impersonation_availability(&self) -> Result<(), String> {
-        if self.impersonation_in_progress() {
-            if !self.settings().impersonation_enabled() {
-                self.stop_impersonation();
-                return Err("Impersonation has been disabled".to_string());
-            }
+    fn check_impersonation_availability(&self) -> Result<(), HttpResponse> {
+        if !self.impersonation_in_progress() {
+            return Ok(());
+        }
+
+        if !self.config.gitlab.impersonation_enabled {
+            self.stop_impersonation();
+            return Err(HttpResponse::Forbidden().body("Impersonation has been disabled"));
         }
 
         Ok(())
     }
 
-    /// Stop impersonation
-    fn stop_impersonation(&self) -> Option<Arc<User>> {
+    fn stop_impersonation(&self) -> User {
         self.log_impersonation_event();
 
-        // Set the impersonator as the current user
         if let Some(impersonator) = self.impersonator() {
-            self.set_current_user(impersonator);
+            self.session.set_user(impersonator);
         }
 
-        // Clear impersonator from session
-        self.session().remove("impersonator_id");
-
-        // Clear access token session keys
+        self.session.remove("impersonator_id");
         self.clear_access_token_session_keys();
 
         self.current_user()
     }
 
-    /// Check if impersonation is in progress
     fn impersonation_in_progress(&self) -> bool {
-        self.session().get::<i64>("impersonator_id").is_some()
+        self.session.get::<i32>("impersonator_id").is_some()
     }
 
-    /// Log impersonation event
     fn log_impersonation_event(&self) {
-        if let (Some(impersonator), Some(current_user)) = (self.impersonator(), self.current_user())
+        if let (Some(impersonator), Some(current_user)) =
+            (self.impersonator(), self.session.get_current_user())
         {
-            AppLogger::info(&format!(
+            self.logger.info(&format!(
                 "User {} has stopped impersonating {}",
-                impersonator.username(),
-                current_user.username()
+                impersonator.username, current_user.username
             ));
         }
     }
 
-    /// Clear access token session keys
     fn clear_access_token_session_keys(&self) {
-        let session = self.session();
-        let keys_to_delete: Vec<String> = session
+        let session_keys: Vec<String> = self
+            .session
             .keys()
             .filter(|key| SESSION_KEYS_TO_DELETE.contains(key.as_str()))
             .cloned()
             .collect();
 
-        for key in keys_to_delete {
-            session.remove(&key);
+        for key in session_keys {
+            self.session.remove(&key);
         }
     }
 
-    /// Get the impersonator
-    fn impersonator(&self) -> Option<Arc<User>> {
-        if let Some(impersonator_id) = self.session().get::<i64>("impersonator_id") {
-            return User::find(impersonator_id);
+    fn impersonator(&self) -> Option<User> {
+        if let Some(impersonator_id) = self.session.get::<i32>("impersonator_id") {
+            User::find(impersonator_id)
+        } else {
+            None
         }
-
-        None
     }
-
-    // Required trait methods that need to be implemented by the controller
-    fn current_user(&self) -> Option<Arc<User>>;
-    fn set_current_user(&self, user: Arc<User>);
-    fn settings(&self) -> Arc<Settings>;
-    fn session(&self) -> &Session;
 }

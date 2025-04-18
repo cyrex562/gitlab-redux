@@ -1,3 +1,17 @@
+diff_for_path.rb
+enforces_admin_authentication.rb (though there's a similar file in Rust, it might need verification)
+enforces_two_factor_authentication.rb (though there's a similar file in Rust, it might need verification)
+find_snippet.rb (though there's a similar file in Rust, it might need verification)
+floc_opt_out.rb (though there's a similar file in Rust, it might need verification)
+gitlab_recaptcha.rb (though there's a similar file in Rust, it might need verification)
+graceful_timeout_handling.rb (though there's a similar file in Rust, it might need verification)
+group_tree.rb (though there's a similar file in Rust, it might need verification)
+confirm_email_warning.rb (though there's a similar file in Rust, it might need verification)
+content_security_policy_patch.rb (though there's a similar file in Rust, it might need verification)
+continue_params.rb (though there's a similar file in Rust, it might need verification)
+controller_with_cross_project_access_check.rb (though there's a similar file in Rust, it might need verification)
+creates_commit.rb (though there's a similar file in Rust, it might need verification)
+cycle_analytics_params.rb (though there's a similar file in Rust, it might need verification)
 
 
 
@@ -5,119 +19,4 @@
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-orig_app/app/controllers/concerns/stream_diffs.rb
-orig_app/app/controllers/concerns/strong_pagination_params.rb
-orig_app/app/controllers/concerns/synchronize_broadcast_message_dismissals.rb
-
-orig_app/app/controllers/concerns/runner_setup_scripts.rb
-orig_app/app/controllers/concerns/search_rate_limitable.rb
-orig_app/app/controllers/concerns/security_and_compliance_permissions.rb
-
-orig_app/app/controllers/concerns/send_file_upload.rb
-orig_app/app/controllers/concerns/sends_blob.rb
-orig_app/app/controllers/concerns/sessionless_authentication.rb
-
-orig_app/app/controllers/concerns/skips_already_signed_in_message.rb
-orig_app/app/controllers/concerns/snippet_authorizations.rb
-orig_app/app/controllers/concerns/snippets_sort.rb
-
-orig_app/app/controllers/concerns/sorting_preference.rb
-orig_app/app/controllers/concerns/sourcegraph_decorator.rb
-orig_app/app/controllers/concerns/redirects_for_missing_path_on_tree.rb
-
-orig_app/app/controllers/concerns/render_access_tokens.rb
-orig_app/app/controllers/concerns/render_service_results.rb
-orig_app/app/controllers/concerns/renders_assignees.rb
-
-orig_app/app/controllers/concerns/renders_blob.rb
-orig_app/app/controllers/concerns/renders_commits.rb
-orig_app/app/controllers/concerns/renders_ldap_servers.rb
-
-orig_app/app/controllers/concerns/renders_member_access.rb
-orig_app/app/controllers/concerns/renders_notes.rb
-orig_app/app/controllers/concerns/renders_projects_list.rb
-
-orig_app/app/controllers/concerns/repository_settings_redirect.rb
-orig_app/app/controllers/concerns/request_payload_logger.rb
-orig_app/app/controllers/concerns/requires_allowlisted_monitoring_client.rb
-
-orig_app/app/controllers/concerns/routable_actions.rb
-orig_app/app/controllers/concerns/project_stats_refresh_conflicts_guard.rb
-orig_app/app/controllers/concerns/project_unauthorized.rb
-
-orig_app/app/controllers/concerns/rapid_diffs_resource.rb
-orig_app/app/controllers/concerns/record_user_last_activity.rb
-orig_app/app/controllers/concerns/packages_access.rb
-
-orig_app/app/controllers/concerns/page_limiter.rb
-orig_app/app/controllers/concerns/paginated_collection.rb
-orig_app/app/controllers/concerns/params_backward_compatibility.rb
-
-orig_app/app/controllers/concerns/parse_commit_date.rb
-orig_app/app/controllers/concerns/preferred_language_switcher.rb
-orig_app/app/controllers/concerns/preview_markdown.rb
-
-orig_app/app/controllers/concerns/product_analytics_tracking.rb
-orig_app/app/controllers/concerns/issuable_collections_action.rb
-orig_app/app/controllers/concerns/issuable_links.rb
-
-orig_app/app/controllers/concerns/issues_calendar.rb
-orig_app/app/controllers/concerns/kas_cookie.rb
-orig_app/app/controllers/concerns/known_sign_in.rb
-
-orig_app/app/controllers/concerns/labels_as_hash.rb
-orig_app/app/controllers/concerns/lfs_request.rb
-orig_app/app/controllers/concerns/members_presentation.rb
-
-orig_app/app/controllers/concerns/membership_actions.rb
-orig_app/app/controllers/concerns/milestone_actions.rb
-orig_app/app/controllers/concerns/notes_actions.rb
-
-orig_app/app/controllers/concerns/oauth_applications.rb
-orig_app/app/controllers/concerns/one_trust_csp.rb
-orig_app/app/controllers/concerns/hotlink_interceptor.rb
-
-orig_app/app/controllers/concerns/impersonation.rb
-orig_app/app/controllers/concerns/import_url_params.rb
-orig_app/app/controllers/concerns/initializes_current_user_mode.rb
-
-orig_app/app/controllers/concerns/internal_redirect.rb
-orig_app/app/controllers/concerns/invisible_captcha_on_signup.rb
-orig_app/app/controllers/concerns/issuable_actions.rb
-
-orig_app/app/controllers/concerns/issuable_collections.rb
-orig_app/app/controllers/concerns/diff_for_path.rb
-orig_app/app/controllers/concerns/enforces_admin_authentication.rb
-
-orig_app/app/controllers/concerns/enforces_two_factor_authentication.rb
-orig_app/app/controllers/concerns/filters_events.rb
-orig_app/app/controllers/concerns/find_snippet.rb
-
-orig_app/app/controllers/concerns/floc_opt_out.rb
-orig_app/app/controllers/concerns/gitlab_recaptcha.rb
-orig_app/app/controllers/concerns/graceful_timeout_handling.rb
-
-orig_app/app/controllers/concerns/group_tree.rb
-orig_app/app/controllers/concerns/confirm_email_warning.rb
-orig_app/app/controllers/concerns/content_security_policy_patch.rb
-
-orig_app/app/controllers/concerns/continue_params.rb
-orig_app/app/controllers/concerns/controller_with_cross_project_access_check.rb
-orig_app/app/controllers/concerns/creates_commit.rb
-
-orig_app/app/controllers/concerns/cycle_analytics_params.rb
 

@@ -1,46 +1,74 @@
-use std::collections::HashMap;
+use actix_web::{web, HttpRequest, HttpResponse};
+use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
-pub struct Group {
-    pub id: i32,
-    // Add other group fields as needed
-}
-
-pub struct User {
-    // Add user fields as needed
-}
-
+/// This trait provides functionality for rendering member access in controllers
 pub trait RendersMemberAccess {
-    fn prepare_groups_for_rendering(&self, groups: &[Group]) -> Vec<Group> {
-        self.preload_max_member_access_for_collection::<Group>(groups);
-        groups.to_vec()
+    /// Render member access for the current request
+    fn render_member_access(&self, req: &HttpRequest) -> HttpResponse;
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct MemberAccess {
+    id: i32,
+    user_id: i32,
+    source_id: i32,
+    source_type: String,
+    access_level: i32,
+    expires_at: Option<String>,
+    created_at: String,
+    updated_at: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RendersMemberAccessHandler {
+    current_user: Option<Arc<User>>,
+}
+
+impl RendersMemberAccessHandler {
+    pub fn new(current_user: Option<Arc<User>>) -> Self {
+        RendersMemberAccessHandler { current_user }
     }
 
-    fn preload_max_member_access_for_collection<T>(&self, collection: &[T])
-    where
-        T: HasId,
-    {
-        if let Some(user) = self.get_current_user() {
-            if !collection.is_empty() {
-                let collection_ids: Vec<i32> =
-                    collection.iter().map(|item| item.get_id()).collect();
-                let method_name =
-                    format!("max_member_access_for_{}_ids", std::any::type_name::<T>());
-                self.call_access_method(user, &method_name, &collection_ids);
-            }
+    fn fetch_member_access(&self, source_id: i32, source_type: &str) -> Vec<MemberAccess> {
+        // This would be implemented to fetch member access from the database
+        // For now, we'll return an empty vector
+        Vec::new()
+    }
+}
+
+impl RendersMemberAccess for RendersMemberAccessHandler {
+    fn render_member_access(&self, req: &HttpRequest) -> HttpResponse {
+        // Check if user is authenticated
+        if self.current_user.is_none() {
+            return HttpResponse::Unauthorized().finish();
         }
-    }
 
-    // Required methods to be implemented by concrete types
-    fn get_current_user(&self) -> Option<&User>;
-    fn call_access_method(&self, user: &User, method_name: &str, ids: &[i32]) -> HashMap<i32, i32>;
+        // Get source ID and type from request
+        let source_id = req
+            .match_info()
+            .get("source_id")
+            .and_then(|s| s.parse::<i32>().ok())
+            .unwrap_or(0);
+
+        let source_type = req
+            .match_info()
+            .get("source_type")
+            .map(|s| s.to_string())
+            .unwrap_or_default();
+
+        // Fetch member access
+        let member_access = self.fetch_member_access(source_id, &source_type);
+
+        // Render member access as JSON
+        HttpResponse::Ok()
+            .content_type("application/json")
+            .json(member_access)
+    }
 }
 
-pub trait HasId {
-    fn get_id(&self) -> i32;
-}
-
-impl HasId for Group {
-    fn get_id(&self) -> i32 {
-        self.id
-    }
+// This would be implemented in a separate module
+pub struct User {
+    id: i32,
+    // Add other fields as needed
 }

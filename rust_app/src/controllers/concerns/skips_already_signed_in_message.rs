@@ -1,57 +1,102 @@
-use crate::config::settings::Settings;
-use crate::models::user::User;
-use actix_web::{web, HttpResponse};
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use crate::auth::devise::DeviseController;
+use crate::i18n::I18n;
+use actix_web::{web, HttpRequest, HttpResponse};
+use std::sync::Arc;
 
-/// Module for handling already signed in message skipping
+/// This trait can be implemented by devise controllers to skip showing an "already signed in"
+/// warning on registrations and logins
 pub trait SkipsAlreadySignedInMessage {
-    /// Get the current user ID
-    fn user_id(&self) -> Option<i32>;
+    /// Skip the authentication check for new and create actions
+    fn skip_authentication_for_registration(&self, req: &HttpRequest) -> bool;
 
-    /// Get the message ID
-    fn message_id(&self) -> Option<i32>;
+    /// Require no authentication without showing a flash message
+    fn require_no_authentication_without_flash(
+        &self,
+        req: &HttpRequest,
+    ) -> Result<(), HttpResponse>;
+}
 
-    /// Get the message type
-    fn message_type(&self) -> Option<String>;
+pub struct SkipsAlreadySignedInMessageHandler {
+    i18n: Arc<I18n>,
+}
 
-    /// Check if the user is already signed in
-    fn is_user_signed_in(&self) -> bool {
-        self.user_id().is_some()
+impl SkipsAlreadySignedInMessageHandler {
+    pub fn new(i18n: Arc<I18n>) -> Self {
+        SkipsAlreadySignedInMessageHandler { i18n }
+    }
+}
+
+impl SkipsAlreadySignedInMessage for SkipsAlreadySignedInMessageHandler {
+    fn skip_authentication_for_registration(&self, req: &HttpRequest) -> bool {
+        // Check if the current path is for new or create actions
+        let path = req.path();
+        path.ends_with("/new") || path.ends_with("/create")
     }
 
-    /// Check if the message should be skipped
-    fn should_skip_message(&self) -> bool {
-        if !self.is_user_signed_in() {
-            return false;
+    fn require_no_authentication_without_flash(
+        &self,
+        req: &HttpRequest,
+    ) -> Result<(), HttpResponse> {
+        // First, require no authentication (this would normally set a flash message)
+        let result = DeviseController::require_no_authentication(req);
+
+        // If the flash message is "already authenticated", clear it
+        if let Ok(flash) = req.extensions().get::<Flash>() {
+            if let Some(alert) = flash.get("alert") {
+                if alert == self.i18n.t("devise.failure.already_authenticated") {
+                    flash.remove("alert");
+                }
+            }
         }
 
-        match self.message_type() {
-            Some(msg_type) => matches!(msg_type.as_str(), "sign_in" | "registration"),
-            None => false,
+        result
+    }
+}
+
+// This would be implemented in a separate module
+pub mod auth {
+    pub mod devise {
+        use actix_web::HttpRequest;
+
+        pub struct DeviseController;
+
+        impl DeviseController {
+            pub fn require_no_authentication(req: &HttpRequest) -> Result<(), actix_web::Error> {
+                // In a real implementation, this would check if the user is already authenticated
+                // and return an error if they are
+                // For now, we'll just return Ok
+                Ok(())
+            }
         }
     }
+}
 
-    /// Get message skip status
-    fn get_message_skip_status(&self) -> HashMap<String, bool> {
-        let mut status = HashMap::new();
+// This would be implemented in a separate module
+pub mod i18n {
+    use std::sync::Arc;
 
-        status.insert("user_signed_in".to_string(), self.is_user_signed_in());
-        status.insert(
-            "should_skip_message".to_string(),
-            self.should_skip_message(),
-        );
+    pub struct I18n;
 
-        status
+    impl I18n {
+        pub fn t(&self, key: &str) -> String {
+            // In a real implementation, this would translate the key
+            // For now, we'll just return the key
+            key.to_string()
+        }
+    }
+}
+
+// This would be implemented in a separate module
+pub struct Flash {
+    messages: std::collections::HashMap<String, String>,
+}
+
+impl Flash {
+    pub fn get(&self, key: &str) -> Option<&String> {
+        self.messages.get(key)
     }
 
-    /// Handle message skipping
-    fn handle_message_skip(&self) -> Result<(), HttpResponse> {
-        if self.should_skip_message() {
-            return Err(HttpResponse::Ok().json(serde_json::json!({
-                "message": "Message skipped - user already signed in"
-            })));
-        }
-        Ok(())
+    pub fn remove(&mut self, key: &str) {
+        self.messages.remove(key);
     }
 }

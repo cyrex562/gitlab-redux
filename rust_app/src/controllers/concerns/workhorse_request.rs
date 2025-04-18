@@ -1,21 +1,34 @@
-use actix_web::{web, HttpRequest, HttpResponse, Responder};
-use serde::{Deserialize, Serialize};
+use actix_web::{web, HttpRequest, HttpResponse, Result};
+use std::collections::HashMap;
 
-use crate::utils::workhorse::Workhorse;
-
-/// Module for handling workhorse requests
 pub trait WorkhorseRequest {
-    /// Verify the workhorse API request
-    fn verify_workhorse_api(&self, req: &HttpRequest) -> Result<(), HttpResponse> {
-        match Workhorse::verify_api_request(req.headers()) {
-            Ok(_) => Ok(()),
-            Err(_) => Err(HttpResponse::Unauthorized().json("Unauthorized workhorse request")),
-        }
-    }
+    fn verify_workhorse_api(&self, req: &HttpRequest) -> Result<()>;
+}
 
-    /// Set the workhorse internal API content type
-    fn set_workhorse_internal_api_content_type(&self) {
-        // This would typically set a response header
-        // In Actix-web, this would be handled in the response builder
+pub struct WorkhorseRequestHandler;
+
+impl WorkhorseRequestHandler {
+    pub fn new() -> Self {
+        WorkhorseRequestHandler
+    }
+}
+
+impl WorkhorseRequest for WorkhorseRequestHandler {
+    fn verify_workhorse_api(&self, req: &HttpRequest) -> Result<()> {
+        // In a real implementation, this would verify the request headers
+        // against a secret key or other authentication mechanism
+        let headers = req.headers();
+
+        // Check for the presence of the Workhorse API header
+        if !headers.contains_key("X-Gitlab-Workhorse-Api-Request") {
+            return Err(actix_web::error::ErrorForbidden(
+                "Invalid Workhorse API request",
+            ));
+        }
+
+        // Additional verification logic would go here
+        // For example, checking a signature or token
+
+        Ok(())
     }
 }
