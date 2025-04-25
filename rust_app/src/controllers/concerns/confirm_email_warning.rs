@@ -1,3 +1,9 @@
+// Ported from: orig_app/app/controllers/concerns/confirm_email_warning.rb
+//
+// This file implements the ConfirmEmailWarning concern in Rust.
+//
+// Ported on 2025-04-24.
+
 use actix_web::{HttpRequest, HttpResponse};
 use std::sync::OnceLock;
 

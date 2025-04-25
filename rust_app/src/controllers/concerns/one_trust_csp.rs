@@ -1,79 +1,55 @@
-use actix_web::{web, HttpRequest, HttpResponse, Responder};
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+// Ported from: orig_app/app/controllers/concerns/one_trust_csp.rb
+// This file implements the OneTrustCSP concern in Rust.
+//
+// Adds OneTrust-specific script-src and connect-src values to the Content Security Policy.
 
+use crate::auth::security_policy::ContentSecurityPolicy;
+
+/// Trait for OneTrustCSP integration
 pub trait OneTrustCSP {
-    fn set_csp_headers(&self, req: &HttpRequest) -> impl Responder;
+    /// Updates the given ContentSecurityPolicy with OneTrust values if enabled or if policy has directives
+    fn apply_one_trust_csp(&self, csp: &mut ContentSecurityPolicy, one_trust_enabled: bool);
 }
 
-pub struct OneTrustCSPImpl {
-    nonce: String,
-    report_only: bool,
-}
-
-impl OneTrustCSPImpl {
-    pub fn new(nonce: String, report_only: bool) -> Self {
-        Self { nonce, report_only }
-    }
-
-    fn csp_directives(&self) -> HashMap<String, String> {
-        let mut directives = HashMap::new();
-
-        // Default directives
-        directives.insert("default-src".to_string(), "'self'".to_string());
-        directives.insert(
-            "script-src".to_string(),
-            format!(
-                "'self' 'nonce-{}' 'unsafe-inline' 'unsafe-eval'",
-                self.nonce
-            ),
-        );
-        directives.insert(
-            "style-src".to_string(),
-            "'self' 'unsafe-inline'".to_string(),
-        );
-        directives.insert(
-            "img-src".to_string(),
-            "'self' data: blob: https:".to_string(),
-        );
-        directives.insert("font-src".to_string(), "'self' data: https:".to_string());
-        directives.insert("connect-src".to_string(), "'self' https: wss:".to_string());
-        directives.insert("frame-src".to_string(), "'self' https:".to_string());
-        directives.insert("object-src".to_string(), "'none'".to_string());
-        directives.insert("base-uri".to_string(), "'self'".to_string());
-        directives.insert("form-action".to_string(), "'self'".to_string());
-        directives.insert("frame-ancestors".to_string(), "'none'".to_string());
-        directives.insert("upgrade-insecure-requests".to_string(), "".to_string());
-
-        directives
-    }
-
-    fn format_csp_header(&self) -> String {
-        let directives = self.csp_directives();
-        directives
-            .iter()
-            .map(|(key, value)| {
-                if value.is_empty() {
-                    key.clone()
-                } else {
-                    format!("{} {}", key, value)
-                }
-            })
-            .collect::<Vec<String>>()
-            .join("; ")
-    }
-}
+/// Implementation struct for OneTrustCSP
+pub struct OneTrustCSPImpl;
 
 impl OneTrustCSP for OneTrustCSPImpl {
-    fn set_csp_headers(&self, req: &HttpRequest) -> impl Responder {
-        let header_name = if self.report_only {
-            "Content-Security-Policy-Report-Only"
-        } else {
-            "Content-Security-Policy"
-        };
+    fn apply_one_trust_csp(&self, csp: &mut ContentSecurityPolicy, one_trust_enabled: bool) {
+        // Only apply if OneTrust is enabled or there are existing directives
+        let has_directives = !csp.script_src.is_empty() || !csp.default_src.is_empty();
+        if !(one_trust_enabled || has_directives) {
+            return;
+        }
 
-        HttpResponse::Ok()
-            .header(header_name, self.format_csp_header())
-            .finish()
+        // script-src: add 'unsafe-eval', https://cdn.cookielaw.org, https://*.onetrust.com
+        let mut script_src = if !csp.script_src.is_empty() {
+            csp.script_src.clone()
+        } else {
+            csp.default_src.clone()
+        };
+        for val in [
+            "'unsafe-eval'",
+            "https://cdn.cookielaw.org",
+            "https://*.onetrust.com",
+        ] {
+            if !script_src.contains(&val.to_string()) {
+                script_src.push(val.to_string());
+            }
+        }
+        csp.script_src = script_src;
+
+        // connect-src: add https://cdn.cookielaw.org, https://*.onetrust.com
+        let mut connect_src = if !csp.connect_src.is_empty() {
+            csp.connect_src.clone()
+        } else {
+            csp.default_src.clone()
+        };
+        for val in ["https://cdn.cookielaw.org", "https://*.onetrust.com"] {
+            if !connect_src.contains(&val.to_string()) {
+                connect_src.push(val.to_string());
+            }
+        }
+        csp.connect_src = connect_src;
     }
 }

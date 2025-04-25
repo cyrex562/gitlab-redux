@@ -1,7 +1,12 @@
-use serde::{Deserialize, Serialize};
+// Ported from: orig_app/app/controllers/concerns/labels_as_hash.rb
+// Ported on: 2025-04-25
+// See also: orig_app/app/finders/labels_finder.rb and related Ruby logic
+// This file provides the Rust equivalent for converting labels to a hash structure for serialization and UI use.
+
 use crate::models::label::Label;
 use crate::models::user::User;
 use crate::services::labels_finder::LabelsFinder;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -13,7 +18,11 @@ pub struct LabelHash {
 }
 
 pub trait LabelsAsHash {
-    fn labels_as_hash(&self, target: Option<&dyn Labeled>, params: &HashMap<String, String>) -> Vec<LabelHash>;
+    fn labels_as_hash(
+        &self,
+        target: Option<&dyn Labeled>,
+        params: &HashMap<String, String>,
+    ) -> Vec<LabelHash>;
 }
 
 pub trait Labeled {
@@ -31,7 +40,11 @@ impl LabelsAsHashImpl {
 }
 
 impl LabelsAsHash for LabelsAsHashImpl {
-    fn labels_as_hash(&self, target: Option<&dyn Labeled>, params: &HashMap<String, String>) -> Vec<LabelHash> {
+    fn labels_as_hash(
+        &self,
+        target: Option<&dyn Labeled>,
+        params: &HashMap<String, String>,
+    ) -> Vec<LabelHash> {
         // Find available labels
         let labels_finder = LabelsFinder::new(&self.current_user, params);
         let available_labels = labels_finder.execute();
@@ -55,8 +68,9 @@ impl LabelsAsHash for LabelsAsHashImpl {
                 .collect();
 
             if !already_set_labels.is_empty() {
-                let titles: Vec<String> = already_set_labels.iter().map(|l| l.title.clone()).collect();
-                
+                let titles: Vec<String> =
+                    already_set_labels.iter().map(|l| l.title.clone()).collect();
+
                 for hash in &mut label_hashes {
                     if titles.contains(&hash.title) {
                         hash.set = Some(true);
@@ -67,4 +81,4 @@ impl LabelsAsHash for LabelsAsHashImpl {
 
         label_hashes
     }
-} 
+}

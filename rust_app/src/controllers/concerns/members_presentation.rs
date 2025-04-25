@@ -1,3 +1,7 @@
+// Ported from: orig_app/app/controllers/concerns/members_presentation.rb (Ruby)
+// Ported on: 2025-04-25
+// This file implements the MembersPresentation concern in Rust.
+
 use crate::models::user::User;
 use crate::presenters::members_presenter::MembersPresenter;
 use crate::services::members_preloader::MembersPreloader;
@@ -24,15 +28,10 @@ impl MembersPresentation for MembersPresentationImpl {
         self.preload_associations(&members);
 
         // Create and return presenters for all members
-        PresenterFactory::new(
-            members,
-            self.current_user.clone(),
-            MembersPresenter::new,
-        )
-        .fabricate()
+        PresenterFactory::new(members, self.current_user.clone(), MembersPresenter::new).fabricate()
     }
 
     fn preload_associations(&self, members: &[User]) {
         MembersPreloader::new(members).preload_all();
     }
-} 
+}

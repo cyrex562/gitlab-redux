@@ -1,3 +1,4 @@
+// Ported from: orig_app/controllers/concerns/content_security_policy_patch.rb
 use actix_web::{web, HttpRequest, HttpResponse};
 use std::sync::Arc;
 

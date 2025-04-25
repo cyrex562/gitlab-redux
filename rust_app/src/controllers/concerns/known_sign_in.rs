@@ -1,3 +1,7 @@
+// Ported from: orig_app/app/controllers/concerns/known_sign_in.rb
+// This file implements the KnownSignIn concern in Rust, providing methods for verifying known sign-ins, checking known devices and IPs, updating cookies, and notifying users of unknown sign-ins.
+// Ported on: 2025-04-25 13:31:44
+
 use crate::models::user::User;
 use crate::services::notification::NotificationService;
 use crate::utils::visitor_location::VisitorLocation;

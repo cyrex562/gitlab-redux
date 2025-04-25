@@ -1,2 +1,1 @@
-pub mod banzai;
-pub mod clusters;
+pub mod jira_connect_app_descriptor;

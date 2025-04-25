@@ -1,0 +1,6 @@
+
+- orig_app/app/controllers/jira_connect/app_descriptor_controller.rb → rust_app/src/controllers/jira_connect_app_descriptor.rs
+  - Ported the Jira Connect App Descriptor controller to Rust using Axum/Actix idioms.
+  - The Rust handler returns the JSON descriptor at /jira_connect/app_descriptor.json.
+  - Structs are defined for the descriptor structure, and static values are used for constants and URLs.
+  - Some dynamic values (e.g., logo URL, app key) are currently hardcoded for simplicity; adapt as needed for full dynamic support.

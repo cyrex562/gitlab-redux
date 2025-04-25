@@ -1,0 +1,2 @@
+2025-04-25 14:48:52: Ported orig_app/app/controllers/concerns/oauth_applications.rb to rust_app/src/controllers/concerns/oauth_applications.rs
+2025-04-25: Ported orig_app/app/controllers/concerns/one_trust_csp.rb to rust_app/src/controllers/concerns/one_trust_csp.rs

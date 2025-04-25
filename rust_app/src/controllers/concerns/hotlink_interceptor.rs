@@ -1,3 +1,4 @@
+// Ported from orig_app/app/controllers/concerns/hotlink_interceptor.rb
 use actix_web::{web, HttpRequest, HttpResponse, Responder};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;

@@ -8,6 +8,7 @@ use tower_http::{cors::CorsLayer, services::ServeDir, trace::TraceLayer};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 mod config;
+mod controllers;
 mod gitlab;
 mod graphql;
 mod handlers;
@@ -22,7 +23,9 @@ use crate::controllers::admin::{
     ClustersController, CohortsController, DashboardController, HealthCheckController,
     SystemInfoController, VersionCheckController,
 };
-use crate::controllers::{application, health, sessions, users, well_known};
+use crate::controllers::{
+    application, health, jira_connect_app_descriptor, sessions, users, well_known,
+};
 
 use anyhow::Result;
 use config::Config;
@@ -100,6 +103,10 @@ async fn main() -> Result<()> {
     let app = Router::new()
         .route("/", get(handlers::home::index))
         .route("/health", get(handlers::health::check))
+        .route(
+            "/jira_connect/app_descriptor.json",
+            get(jira_connect_app_descriptor::app_descriptor),
+        )
         .nest_service("/assets", ServeDir::new("static/assets"))
         .layer(TraceLayer::new_for_http())
         .layer(CorsLayer::permissive())

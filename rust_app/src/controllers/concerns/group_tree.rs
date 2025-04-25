@@ -1,3 +1,10 @@
+// Ported from: orig_app/app/controllers/concerns/group_tree.rb
+//
+// This file implements the GroupTree concern in Rust, providing methods to render a group tree and filter groups with ancestors.
+// The logic is adapted to Rust idioms and Actix-web conventions.
+//
+// Ported on: 2025-04-25 12:33:29
+
 use actix_web::{web, HttpRequest, HttpResponse};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

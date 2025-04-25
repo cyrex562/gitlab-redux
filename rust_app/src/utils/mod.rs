@@ -1,1 +1,1 @@
-// Utilities module
+pub mod url_sanitizer;

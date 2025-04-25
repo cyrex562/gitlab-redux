@@ -1,3 +1,6 @@
+// Ported from: orig_app/app/controllers/concerns/issuable_collections.rb on 2025-04-25
+// This file was automatically ported from Ruby to Rust.
+
 use actix_web::{web, HttpResponse};
 use std::sync::Arc;
 

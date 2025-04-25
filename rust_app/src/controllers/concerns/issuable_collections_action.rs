@@ -1,3 +1,9 @@
+// Ported from: orig_app/app/controllers/concerns/issuable_collections_action.rb
+// This module provides actions for issues, merge requests, and issues calendar collections.
+// Ported on 2025-04-25.
+//
+// See porting log for details.
+
 use crate::{
     models::{Issue, MergeRequest, Project, User},
     services::{issues::IssuesService, merge_requests::MergeRequestsService},

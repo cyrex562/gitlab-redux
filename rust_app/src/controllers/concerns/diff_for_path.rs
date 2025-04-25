@@ -1,3 +1,6 @@
+// Ported from: orig_app/app/controllers/concerns/diff_for_path.rb
+// This module provides the DiffForPath trait and handler for rendering diffs by file identifier.
+
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 

@@ -1,3 +1,4 @@
+// Ported from orig_app/app/controllers/concerns/kas_cookie.rb
 use crate::config::Settings;
 use crate::gitlab::kas::{Kas, UserAccess};
 use crate::session::Session;

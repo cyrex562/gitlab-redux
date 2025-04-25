@@ -1,3 +1,10 @@
+// Ported from: orig_app/app/controllers/concerns/import_url_params.rb
+//
+// This file provides ImportUrlParams trait and implementation for handling import URL parameters.
+//
+// See also: orig_app/lib/gitlab/url_sanitizer.rb for the original Ruby URL sanitizer logic.
+//
+// ---
 use actix_web::web;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

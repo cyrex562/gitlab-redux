@@ -1,3 +1,11 @@
+// Ported from orig_app/app/controllers/concerns/web_hooks/hook_actions.rb
+// This trait provides actions for managing webhooks (index, create, update, destroy, edit)
+// in a service/controller context. Integrate with your controller/service as needed.
+//
+// See the Ruby source for more details on the original logic.
+//
+// Ported: 2025-04-24
+
 use super::hook_execution_notice::HookExecutionNotice;
 use crate::models::user::User;
 use crate::webhooks::{WebHook, WebHookResult};

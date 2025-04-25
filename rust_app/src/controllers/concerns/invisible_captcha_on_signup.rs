@@ -1,3 +1,10 @@
+// Ported from: orig_app/app/controllers/concerns/invisible_captcha_on_signup.rb
+// This file implements the InvisibleCaptchaOnSignup concern in Rust.
+//
+// Provides spam protection callbacks for signup, including metrics and logging.
+//
+// See the Ruby source for original logic and documentation.
+
 use actix_web::{HttpRequest, HttpResponse};
 use std::sync::OnceLock;
 

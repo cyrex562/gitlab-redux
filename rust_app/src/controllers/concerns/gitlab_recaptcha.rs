@@ -1,3 +1,6 @@
+// Ported from: orig_app/app/controllers/concerns/gitlab_recaptcha.rb
+// This file provides the GitlabRecaptcha trait for controller logic involving reCAPTCHA.
+
 use actix_web::{HttpRequest, HttpResponse};
 use serde_json::json;
 use std::sync::OnceLock;

@@ -1,3 +1,6 @@
+// Ported from orig_app/app/controllers/concerns/impersonation.rb on 2025-04-25
+// This file implements the Impersonation concern from the Ruby codebase.
+
 use actix_web::{web, HttpRequest, HttpResponse};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
