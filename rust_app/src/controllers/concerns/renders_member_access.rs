@@ -1,11 +1,20 @@
+// Ported from: orig_app/app/controllers/concerns/renders_member_access.rb
+// Ported: 2025-04-28
+//
+// This module provides methods for preloading and preparing group member access for rendering.
+
+use crate::models::groups::member_access::MemberAccessService;
 use actix_web::{web, HttpRequest, HttpResponse};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::sync::Arc;
 
 /// This trait provides functionality for rendering member access in controllers
 pub trait RendersMemberAccess {
     /// Render member access for the current request
     fn render_member_access(&self, req: &HttpRequest) -> HttpResponse;
+    /// Prepare groups for rendering (preloads max member access)
+    fn prepare_groups_for_rendering(&self, groups: Vec<i32>) -> Vec<i32>;
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -22,7 +31,7 @@ pub struct MemberAccess {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RendersMemberAccessHandler {
-    current_user: Option<Arc<User>>,
+    pub current_user: Option<Arc<User>>,
 }
 
 impl RendersMemberAccessHandler {
@@ -34,6 +43,17 @@ impl RendersMemberAccessHandler {
         // This would be implemented to fetch member access from the database
         // For now, we'll return an empty vector
         Vec::new()
+    }
+
+    /// Preload max member access for a collection of group IDs for the current user
+    pub fn preload_max_member_access_for_collection(&self, group_ids: &[i32]) -> HashMap<i32, i32> {
+        if self.current_user.is_none() || group_ids.is_empty() {
+            return HashMap::new();
+        }
+        // In a real implementation, this would call a user method like in Ruby:
+        // current_user.max_member_access_for_group_ids(group_ids)
+        // Here, we use the MemberAccessService stub
+        MemberAccessService::preload_max_member_access_for_collection(group_ids.to_vec())
     }
 }
 
@@ -64,6 +84,11 @@ impl RendersMemberAccess for RendersMemberAccessHandler {
         HttpResponse::Ok()
             .content_type("application/json")
             .json(member_access)
+    }
+
+    fn prepare_groups_for_rendering(&self, groups: Vec<i32>) -> Vec<i32> {
+        self.preload_max_member_access_for_collection(&groups);
+        groups
     }
 }
 

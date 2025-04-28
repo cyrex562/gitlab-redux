@@ -1,3 +1,7 @@
+// Ported from: orig_app/app/controllers/concerns/renders_ldap_servers.rb
+// This file provides the RendersLdapServers trait and handler for LDAP server rendering logic.
+// Ported on 2025-04-28
+
 use actix_web::{web, HttpRequest, HttpResponse};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -24,17 +28,34 @@ pub struct LdapServer {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RendersLdapServersHandler {
     current_user: Option<Arc<User>>,
+    ldap_sign_in_enabled: bool, // New field to track LDAP sign-in enablement
 }
 
 impl RendersLdapServersHandler {
-    pub fn new(current_user: Option<Arc<User>>) -> Self {
-        RendersLdapServersHandler { current_user }
+    pub fn new(current_user: Option<Arc<User>>, ldap_sign_in_enabled: bool) -> Self {
+        RendersLdapServersHandler {
+            current_user,
+            ldap_sign_in_enabled,
+        }
     }
 
     fn fetch_ldap_servers(&self) -> Vec<LdapServer> {
-        // This would be implemented to fetch LDAP servers from the database
-        // For now, we'll return an empty vector
-        Vec::new()
+        if self.ldap_sign_in_enabled {
+            // TODO: Replace with real LDAP server fetching logic
+            vec![LdapServer {
+                id: 1,
+                host: "ldap.example.com".to_string(),
+                port: 636,
+                uid: "sAMAccountName".to_string(),
+                method: "simple_tls".to_string(),
+                bind_dn: Some("uid=admin,dc=example,dc=com".to_string()),
+                password: None,
+                verify_certificates: true,
+                active: true,
+            }]
+        } else {
+            Vec::new()
+        }
     }
 }
 
@@ -49,7 +70,7 @@ impl RendersLdapServers for RendersLdapServersHandler {
             return HttpResponse::Unauthorized().finish();
         }
 
-        // Fetch LDAP servers
+        // Fetch LDAP servers (returns empty if sign-in is disabled)
         let servers = self.fetch_ldap_servers();
 
         // Render servers as JSON

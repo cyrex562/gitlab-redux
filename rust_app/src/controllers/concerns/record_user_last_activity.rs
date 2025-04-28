@@ -1,65 +1,85 @@
-use actix_web::{dev::ServiceRequest, error::Error};
-use crate::{
-    models::{User, Group, Project},
-    services::users::ActivityService,
-    utils::{
-        database::Database,
-        event_store::EventStore,
-        cookies::CookiesHelper,
-    },
-};
+// Ported from: orig_app/app/controllers/concerns/record_user_last_activity.rb
+// This trait provides controller logic to update the user's last activity on GET requests
+// and to publish a member activity event after the action.
+
+use crate::event_store::{ActivityEvent, EventStore};
+use crate::models::{Group, Project, User};
+use crate::services::users::ActivityService;
+use actix_web::{HttpRequest, HttpResponse};
+use chrono::Utc;
 
 pub trait RecordUserLastActivity {
-    fn set_user_last_activity(&self, req: &ServiceRequest) -> Result<(), Error>;
-    fn set_member_last_activity(&self, req: &ServiceRequest) -> Result<(), Error>;
-}
-
-pub struct RecordUserLastActivityImpl {
-    cookies_helper: Box<dyn CookiesHelper>,
-}
-
-impl RecordUserLastActivityImpl {
-    pub fn new(cookies_helper: Box<dyn CookiesHelper>) -> Self {
-        Self { cookies_helper }
+    // Must be implemented by the controller
+    fn current_user(&self) -> Option<&User>;
+    fn request(&self) -> &HttpRequest;
+    fn group(&self) -> Option<&Group> {
+        None
     }
-}
+    fn project(&self) -> Option<&Project> {
+        None
+    }
+    fn is_db_read_only(&self) -> bool;
 
-impl RecordUserLastActivity for RecordUserLastActivityImpl {
-    fn set_user_last_activity(&self, req: &ServiceRequest) -> Result<(), Error> {
+    // Call this at the start of GET requests
+    fn set_user_last_activity(&self) {
+        let req = self.request();
         if req.method() != actix_web::http::Method::GET {
-            return Ok(());
+            return;
         }
-
-        if Database::is_read_only() {
-            return Ok(());
+        if self.is_db_read_only() {
+            return;
         }
-
-        if let Some(user) = req.extensions().get::<User>() {
-            ActivityService::new(user.clone()).execute()?;
-        }
-
-        Ok(())
+        let user = match self.current_user() {
+            Some(u) => u,
+            None => return,
+        };
+        // TODO: add namespace & project context if needed
+        let _ = ActivityService::new(user.clone()).execute();
     }
 
-    fn set_member_last_activity(&self, req: &ServiceRequest) -> Result<(), Error> {
-        let context = req.extensions().get::<Group>()
-            .or_else(|| req.extensions().get::<Project>());
-
-        if let (Some(user), Some(context)) = (
-            req.extensions().get::<User>(),
-            context,
-        ) {
-            if context.is_persisted() {
-                EventStore::publish(serde_json::json!({
-                    "type": "Users::ActivityEvent",
-                    "data": {
-                        "user_id": user.id,
-                        "namespace_id": context.root_ancestor().id
-                    }
-                }))?;
-            }
-        }
-
-        Ok(())
+    // Call this after the action
+    fn set_member_last_activity(&self) {
+        let user = match self.current_user() {
+            Some(u) => u,
+            None => return,
+        };
+        let context = self
+            .group()
+            .map(|g| g as &dyn Persisted)
+            .or_else(|| self.project().map(|p| p as &dyn Persisted));
+        let context = match context {
+            Some(c) if c.persisted() => c,
+            _ => return,
+        };
+        let namespace_id = context.root_ancestor_id();
+        let event = ActivityEvent {
+            user_id: user.id,
+            namespace_id,
+            timestamp: Utc::now(),
+        };
+        let _ = EventStore::publish(event);
     }
-} 
+}
+
+// Helper trait for context objects
+pub trait Persisted {
+    fn persisted(&self) -> bool;
+    fn root_ancestor_id(&self) -> i64;
+}
+
+impl Persisted for Group {
+    fn persisted(&self) -> bool {
+        self.persisted
+    }
+    fn root_ancestor_id(&self) -> i64 {
+        self.root_ancestor_id
+    }
+}
+impl Persisted for Project {
+    fn persisted(&self) -> bool {
+        self.persisted
+    }
+    fn root_ancestor_id(&self) -> i64 {
+        self.root_ancestor_id
+    }
+}

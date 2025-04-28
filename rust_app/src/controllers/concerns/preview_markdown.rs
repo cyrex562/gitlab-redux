@@ -1,3 +1,7 @@
+// Ported from: orig_app/app/controllers/concerns/preview_markdown.rb
+// This file implements the PreviewMarkdown concern in Rust.
+// Ported on: 2025-04-28 12:50:08
+
 use crate::{
     models::{Group, Project, Wiki},
     services::preview_markdown::PreviewMarkdownService,

@@ -1,3 +1,9 @@
+// Ported from: orig_app/lib/gitlab/pagination/offset_pagination.rb
+// and related pagination helpers in orig_app/app/helpers/pagination_helper.rb
+// Ported on: 2025-04-28
+//
+// This file implements offset-based pagination logic similar to GitLab's Ruby backend.
+
 use crate::models::Paginated;
 use actix_web::{error::Error, HttpResponse};
 use serde::Deserialize;

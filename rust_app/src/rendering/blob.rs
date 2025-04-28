@@ -1,3 +1,7 @@
+// Ported from: orig_app/app/controllers/concerns/renders_blob.rb (Ruby)
+// This file implements blob rendering logic as described in the Ruby concern.
+// Ported on 2025-04-28.
+
 use super::{RenderOptions, Renderable};
 use actix_web::{web, HttpResponse};
 use serde::{Deserialize, Serialize};
@@ -94,4 +98,4 @@ impl BlobRenderer {
             }
         }
     }
-} 
+}

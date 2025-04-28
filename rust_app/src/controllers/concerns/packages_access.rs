@@ -1,3 +1,4 @@
+// Ported from: app/controllers/concerns/packages_access.rb
 use crate::{
     config::Settings,
     models::{Project, User},

@@ -1,3 +1,8 @@
+// Ported from: app/controllers/concerns/page_limiter.rb (Ruby)
+// Ported on: 2025-04-28
+//
+// This file implements page limiting logic originally found in the Ruby concern.
+
 use crate::utils::{device_detector::SafeDeviceDetector, metrics::Metrics};
 use actix_web::{dev::ServiceRequest, error::Error, HttpResponse};
 use std::sync::Arc;

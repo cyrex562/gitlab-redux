@@ -1,13 +1,10 @@
+// Ported from: orig_app/app/controllers/concerns/preferred_language_switcher.rb
+use crate::{
+    config::Settings,
+    utils::{feature_flags::Feature, i18n::I18n, strong_memoize::StrongMemoize},
+};
 use actix_web::{dev::ServiceRequest, web::Data};
 use std::sync::Arc;
-use crate::{
-    utils::{
-        feature_flags::Feature,
-        i18n::I18n,
-        strong_memoize::StrongMemoize,
-    },
-    config::Settings,
-};
 
 pub trait PreferredLanguageSwitcher {
     fn init_preferred_language(&self, req: &ServiceRequest) -> Result<(), Error>;
@@ -25,13 +22,18 @@ impl PreferredLanguageSwitcherImpl {
     }
 
     fn selectable_language(&self, language_options: &[String]) -> Option<String> {
-        language_options.iter()
-            .find(|lan| self.ordered_selectable_locales_codes().contains(&lan.to_string()))
+        language_options
+            .iter()
+            .find(|lan| {
+                self.ordered_selectable_locales_codes()
+                    .contains(&lan.to_string())
+            })
             .cloned()
     }
 
     fn ordered_selectable_locales_codes(&self) -> Vec<String> {
-        self.i18n.ordered_selectable_locales()
+        self.i18n
+            .ordered_selectable_locales()
             .iter()
             .map(|locale| locale.value().to_string())
             .collect()
@@ -42,7 +44,8 @@ impl PreferredLanguageSwitcherImpl {
             .get("accept-language")
             .and_then(|h| h.to_str().ok())
             .map(|header| {
-                header.replace('-', "_")
+                header
+                    .replace('-', "_")
                     .split(|c| c == ',' || c == ';')
                     .filter(|s| !s.starts_with('q'))
                     .map(|s| s.trim().to_string())
@@ -74,4 +77,4 @@ impl PreferredLanguageSwitcher for PreferredLanguageSwitcherImpl {
             .or_else(|| self.selectable_language(&self.browser_languages(req)))
             .unwrap_or_else(|| self.settings.default_preferred_language.clone())
     }
-} 
+}

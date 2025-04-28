@@ -4,6 +4,8 @@ mod check_initial_setup;
 mod continue_params;
 pub mod graceful_timeout_handling;
 pub mod onboarding_redirectable;
+mod product_analytics_tracking;
+mod project_stats_refresh_conflicts_guard;
 mod static_object_external_storage;
 mod static_object_external_storage_csp;
 mod stream_diffs;
@@ -26,6 +28,7 @@ pub mod notes_actions;
 
 pub use bizible_csp::{BizibleCSP, BizibleCSPImpl};
 pub use continue_params::ContinueParams;
+pub use product_analytics_tracking::{Cookies, Destination, ProductAnalyticsTracking};
 pub use static_object_external_storage::{
     Project as StorageProject, Settings as StorageSettings, StaticObjectExternalStorage,
     StaticObjectExternalStorageHandler,

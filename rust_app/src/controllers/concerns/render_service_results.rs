@@ -1,56 +1,43 @@
-use actix_web::{web, HttpRequest, HttpResponse};
-use serde::{Deserialize, Serialize};
-use std::sync::Arc;
+// Ported from: orig_app/app/controllers/concerns/render_service_results.rb
+// This file implements the RenderServiceResults concern in Rust.
 
-/// This trait provides functionality for rendering service results in controllers
+use actix_web::HttpResponse;
+use serde::Serialize;
+
+#[derive(Debug, Serialize)]
+pub struct ServiceResult<T: Serialize> {
+    pub http_status: u16,
+    pub body: T,
+}
+
 pub trait RenderServiceResults {
-    /// Render service results for the current request
-    fn render_service_results(&self, req: &HttpRequest) -> HttpResponse;
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ServiceResult {
-    status: String,
-    message: Option<String>,
-    data: Option<serde_json::Value>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct RenderServiceResultsHandler {
-    current_user: Option<Arc<User>>,
-}
-
-impl RenderServiceResultsHandler {
-    pub fn new(current_user: Option<Arc<User>>) -> Self {
-        RenderServiceResultsHandler { current_user }
+    fn success_response<T: Serialize>(result: &ServiceResult<T>) -> HttpResponse {
+        HttpResponse::build(
+            actix_web::http::StatusCode::from_u16(result.http_status)
+                .unwrap_or(actix_web::http::StatusCode::OK),
+        )
+        .json(&result.body)
     }
 
-    fn fetch_service_results(&self) -> Vec<ServiceResult> {
-        // This would be implemented to fetch service results from the database
-        // For now, we'll return an empty vector
-        Vec::new()
+    fn continue_polling_response() -> HttpResponse {
+        HttpResponse::NoContent().json(serde_json::json!({
+            "status": "processing",
+            "message": "Not ready yet. Try again later."
+        }))
     }
-}
 
-impl RenderServiceResults for RenderServiceResultsHandler {
-    fn render_service_results(&self, req: &HttpRequest) -> HttpResponse {
-        // Check if user is authenticated
-        if self.current_user.is_none() {
-            return HttpResponse::Unauthorized().finish();
-        }
-
-        // Fetch service results
-        let results = self.fetch_service_results();
-
-        // Render results as JSON
-        HttpResponse::Ok()
-            .content_type("application/json")
-            .json(results)
+    fn error_response(status: Option<u16>, message: &str, status_str: &str) -> HttpResponse {
+        let http_status = status.unwrap_or(400);
+        HttpResponse::build(
+            actix_web::http::StatusCode::from_u16(http_status)
+                .unwrap_or(actix_web::http::StatusCode::BAD_REQUEST),
+        )
+        .json(serde_json::json!({
+            "status": status_str,
+            "message": message
+        }))
     }
 }
 
-// This would be implemented in a separate module
-pub struct User {
-    id: i32,
-    // Add other fields as needed
-}
+// Example usage:
+// impl RenderServiceResults for MyController {}

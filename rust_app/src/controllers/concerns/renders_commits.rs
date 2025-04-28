@@ -35,6 +35,54 @@ impl RendersCommitsHandler {
         // For now, we'll return an empty vector
         Vec::new()
     }
+
+    /// Returns a tuple: (limited_commits, hidden_count)
+    pub fn limited_commits<T: Clone>(
+        &self,
+        commits: &[T],
+        commits_count: usize,
+    ) -> (Vec<T>, usize) {
+        if commits_count > COMMITS_SAFE_SIZE {
+            (
+                commits.iter().cloned().take(COMMITS_SAFE_SIZE).collect(),
+                commits_count - COMMITS_SAFE_SIZE,
+            )
+        } else {
+            (commits.to_vec(), 0)
+        }
+    }
+
+    /// Prepares commits for rendering (stub for author/pipeline preloading and rendering)
+    pub fn prepare_commits_for_rendering(&self, commits: &mut [Commit]) {
+        // In Ruby: commits.each(&:lazy_author); commits.each(&:lazy_latest_pipeline)
+        // In Rust, you would preload or process as needed here
+        // Banzai::CommitRenderer.render(commits, @project, current_user)
+        // For now, this is a stub
+    }
+
+    /// Sets up commits for rendering, returns the limited commits and hidden count
+    pub fn set_commits_for_rendering(
+        &mut self,
+        commits: &mut Vec<Commit>,
+        commits_count: Option<usize>,
+    ) -> (Vec<Commit>, usize) {
+        let total_commit_count = commits_count.unwrap_or(commits.len());
+        let (mut limited, hidden_commit_count) = self.limited_commits(commits, total_commit_count);
+        self.prepare_commits_for_rendering(&mut limited);
+        (limited, hidden_commit_count)
+    }
+
+    /// Validates a ref name (stub)
+    pub fn valid_ref(&self, ref_name: Option<&str>) -> bool {
+        match ref_name {
+            None | Some("") => true,
+            Some(_name) => {
+                // Call to GitRefValidator equivalent
+                // For now, always true
+                true
+            }
+        }
+    }
 }
 
 impl RendersCommits for RendersCommitsHandler {

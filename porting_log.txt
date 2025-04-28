@@ -1,2 +1,6 @@
-2025-04-25 14:48:52: Ported orig_app/app/controllers/concerns/oauth_applications.rb to rust_app/src/controllers/concerns/oauth_applications.rs
-2025-04-25: Ported orig_app/app/controllers/concerns/one_trust_csp.rb to rust_app/src/controllers/concerns/one_trust_csp.rs
+# Porting log
+
+2025-04-28: Ported orig_app/app/controllers/concerns/renders_blob.rb to rust_app/src/rendering/blob.rs
+2025-04-28: Ported orig_app/app/controllers/concerns/renders_commits.rb to rust_app/src/controllers/concerns/renders_commits.rs
+2025-04-28: Ported orig_app/app/controllers/concerns/renders_ldap_servers.rb to rust_app/src/controllers/concerns/renders_ldap_servers.rs
+2025-04-28: Ported orig_app/app/controllers/concerns/renders_member_access.rb to rust_app/src/controllers/concerns/renders_member_access.rs

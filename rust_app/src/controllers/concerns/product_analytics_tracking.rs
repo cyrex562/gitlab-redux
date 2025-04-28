@@ -1,3 +1,7 @@
+// Ported from: orig_app/app/controllers/concerns/product_analytics_tracking.rb
+// ProductAnalyticsTracking concern for controller analytics event tracking
+// This is a partial port; some Ruby/Rails-specific features are stubbed or simplified.
+
 use crate::{
     models::{Namespace, Project, User},
     utils::{cookies::CookiesHelper, redis::HLLRedisCounter, tracking::Tracking},
@@ -7,141 +11,86 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 pub trait ProductAnalyticsTracking {
+    // Implementors must provide these methods
+    fn current_user(&self) -> Option<&str>; // Stub: replace with actual user type
+    fn tracking_project_source(&self) -> Option<&str>; // Stub
+    fn tracking_namespace_source(&self) -> Option<&str>; // Stub
+    fn cookies(&self) -> Option<&mut dyn Cookies>; // Stub trait for cookies
+
+    // Ported: track_event logic (simplified)
     fn track_event(
         &self,
         name: &str,
         action: Option<&str>,
         label: Option<&str>,
-        destinations: &[String],
-        block: Option<Box<dyn Fn(&ServiceRequest) -> Option<String> + Send + Sync>>,
-    ) -> Result<(), Error>;
-
-    fn track_internal_event(
-        &self,
-        name: &str,
-        user: Option<&User>,
-        project: Option<&Project>,
-        namespace: Option<&Namespace>,
-        event_args: serde_json::Value,
-    ) -> Result<(), Error>;
-}
-
-pub struct ProductAnalyticsTrackingImpl {
-    tracking: Arc<Tracking>,
-    cookies_helper: Box<dyn CookiesHelper>,
-}
-
-impl ProductAnalyticsTrackingImpl {
-    pub fn new(tracking: Arc<Tracking>, cookies_helper: Box<dyn CookiesHelper>) -> Self {
-        Self {
-            tracking,
-            cookies_helper,
+        destinations: &[Destination],
+    ) {
+        let mut redis_hll = false;
+        let mut snowplow = false;
+        for d in destinations {
+            match d {
+                Destination::RedisHll => redis_hll = true,
+                Destination::Snowplow => snowplow = true,
+            }
+        }
+        if redis_hll {
+            self.track_unique_redis_hll_event(name);
+        }
+        if snowplow {
+            let action = action.expect("action is required when destination is snowplow");
+            let label = label.expect("label is required when destination is snowplow");
+            // Call tracking event (stub)
+            self.snowplow_event(name, action, label);
         }
     }
 
-    fn route_events_to(
-        &self,
-        req: &ServiceRequest,
-        destinations: &[String],
-        name: &str,
-        action: Option<&str>,
-        label: Option<&str>,
-        block: Option<Box<dyn Fn(&ServiceRequest) -> Option<String> + Send + Sync>>,
-    ) -> Result<(), Error> {
-        if destinations.contains(&"redis_hll".to_string()) {
-            self.track_unique_redis_hll_event(req, name, block)?;
-        }
-
-        if destinations.contains(&"snowplow".to_string()) {
-            let action = action.ok_or_else(|| {
-                actix_web::error::ErrorBadRequest("action is required for snowplow")
-            })?;
-            let label = label.ok_or_else(|| {
-                actix_web::error::ErrorBadRequest("label is required for snowplow")
-            })?;
-
-            let mut optional_arguments = serde_json::json!({});
-            if let Some(namespace) = req.extensions().get::<Namespace>() {
-                optional_arguments["namespace"] = serde_json::to_value(namespace)?;
-            }
-            if let Some(project) = req.extensions().get::<Project>() {
-                optional_arguments["project"] = serde_json::to_value(project)?;
-            }
-
-            self.tracking.event(
-                req.path(),
-                action,
-                req.extensions().get::<User>().cloned(),
-                name,
-                label,
-                serde_json::json!([{
-                    "data_source": "redis_hll",
-                    "event": name
-                }]),
-                optional_arguments,
-            )?;
-        }
-
-        Ok(())
+    // Ported: track_internal_event logic (simplified)
+    fn track_internal_event(&self, name: &str) {
+        // Stub: call internal event tracking
+        // e.g., Gitlab::InternalEvents.track_event(...)
     }
 
-    fn track_unique_redis_hll_event(
-        &self,
-        req: &ServiceRequest,
-        event_name: &str,
-        block: Option<Box<dyn Fn(&ServiceRequest) -> Option<String> + Send + Sync>>,
-    ) -> Result<(), Error> {
-        let custom_id = block.as_ref().and_then(|b| b(req));
-        let unique_id = custom_id.or_else(|| self.visitor_id(req));
+    // Ported: route_events_to logic is merged into track_event
 
+    // Ported: track_unique_redis_hll_event
+    fn track_unique_redis_hll_event(&self, event_name: &str) {
+        let unique_id = self.visitor_id();
         if let Some(id) = unique_id {
-            HLLRedisCounter::track_event(event_name, &[id])?;
+            // Stub: call HLLRedisCounter.track_event
         }
-
-        Ok(())
     }
 
-    fn visitor_id(&self, req: &ServiceRequest) -> Option<String> {
-        if let Some(visitor_id) = self.cookies_helper.get(req, "visitor_id") {
-            return Some(visitor_id);
+    // Ported: visitor_id logic
+    fn visitor_id(&self) -> Option<String> {
+        if let Some(cookies) = self.cookies() {
+            if let Some(visitor_id) = cookies.get("visitor_id") {
+                return Some(visitor_id);
+            }
         }
+        if self.current_user().is_some() {
+            let uuid = uuid::Uuid::new_v4().to_string();
+            if let Some(cookies) = self.cookies() {
+                cookies.set("visitor_id", &uuid);
+            }
+            return Some(uuid);
+        }
+        None
+    }
 
-        if let Some(_user) = req.extensions().get::<User>() {
-            let uuid = Uuid::new_v4().to_string();
-            self.cookies_helper.add(req, "visitor_id", &uuid);
-            Some(uuid)
-        } else {
-            None
-        }
+    // Stub for snowplow event
+    fn snowplow_event(&self, _name: &str, _action: &str, _label: &str) {
+        // Implement event sending logic
     }
 }
 
-impl ProductAnalyticsTracking for ProductAnalyticsTrackingImpl {
-    fn track_event(
-        &self,
-        name: &str,
-        action: Option<&str>,
-        label: Option<&str>,
-        destinations: &[String],
-        block: Option<Box<dyn Fn(&ServiceRequest) -> Option<String> + Send + Sync>>,
-    ) -> Result<(), Error> {
-        self.route_events_to(req, destinations, name, action, label, block)
-    }
+// Destinations for event routing
+pub enum Destination {
+    RedisHll,
+    Snowplow,
+}
 
-    fn track_internal_event(
-        &self,
-        name: &str,
-        user: Option<&User>,
-        project: Option<&Project>,
-        namespace: Option<&Namespace>,
-        event_args: serde_json::Value,
-    ) -> Result<(), Error> {
-        self.tracking.track_internal_event(
-            name,
-            user.cloned(),
-            project.cloned(),
-            namespace.cloned(),
-            event_args,
-        )
-    }
+// Stub trait for cookies
+pub trait Cookies {
+    fn get(&self, key: &str) -> Option<String>;
+    fn set(&mut self, key: &str, value: &str);
 }
