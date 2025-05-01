@@ -1,3 +1,9 @@
+// Ported from: orig_app/app/controllers/external_redirect/external_redirect_controller.rb
+// Ported on: 2025-04-30
+// This file implements the ExternalRedirectController from the Ruby codebase.
+//
+// See porting_log.txt for details.
+
 use crate::config::GitlabConfig;
 use crate::controllers::ApplicationController;
 use crate::utils::url_sanitizer::UrlSanitizer;

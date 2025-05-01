@@ -1,6 +1,86 @@
-# Porting log
-
-2025-04-28: Ported orig_app/app/controllers/concerns/renders_blob.rb to rust_app/src/rendering/blob.rs
-2025-04-28: Ported orig_app/app/controllers/concerns/renders_commits.rb to rust_app/src/controllers/concerns/renders_commits.rs
-2025-04-28: Ported orig_app/app/controllers/concerns/renders_ldap_servers.rb to rust_app/src/controllers/concerns/renders_ldap_servers.rs
-2025-04-28: Ported orig_app/app/controllers/concerns/renders_member_access.rb to rust_app/src/controllers/concerns/renders_member_access.rs
+2025-04-30: Ported orig_app/app/controllers/explore/application_controller.rb to rust_app/src/controllers/explore/mod.rs (see file comment for details)
+2025-04-29: Ported orig_app/app/controllers/concerns/with_performance_bar.rb to rust_app/src/controllers/concerns/with_performance_bar.rs
+2025-04-29 | orig_app/app/controllers/concerns/workhorse_authorization.rb -> rust_app/src/controllers/concerns/workhorse_authorization.rs
+2025-04-29: Ported orig_app/app/controllers/concerns/workhorse_request.rb to rust_app/src/controllers/concerns/workhorse_request.rs
+2025-04-30 | orig_app/app/controllers/dashboard/groups_controller.rb -> rust_app/src/controllers/dashboard/groups.rs
+2025-04-30 | orig_app/app/controllers/dashboard/projects_controller.rb -> rust_app/src/controllers/dashboard/projects.rs
+2025-04-30: Ported orig_app/app/controllers/dashboard/snippets_controller.rb to rust_app/src/controllers/dashboard/snippets.rs
+2025-04-30 Ported orig_app/app/controllers/event_forward/logger.rb to rust_app/src/controllers/event_forward/logger.rs
+2025-04-30 | Ported orig_app/app/controllers/explore/projects_controller.rb to rust_app/src/controllers/explore/projects.rs
+2025-04-30: Ported orig_app/app/controllers/explore/snippets_controller.rb to rust_app/src/controllers/explore/snippets.rs
+2025-04-30 | orig_app/app/controllers/external_redirect/external_redirect_controller.rb -> rust_app/src/controllers/external_redirect/controller.rs
+2025-04-30 | orig_app/app/controllers/google_api/authorizations_controller.rb -> rust_app/src/controllers/google_api/authorizations_controller.rs
+2025-05-01: Ported orig_app/app/controllers/groups/crm/organizations_controller.rb to rust_app/src/controllers/groups/crm/organizations_controller.rs (new, edit actions, CRM validation, authorization)
+2025-05-01 11:59:46 | Ported orig_app/app/controllers/groups/dependency_proxy/application_controller.rb -> rust_app/src/controllers/groups/dependency_proxy/application_controller.rs
+// 2025-05-01: Ported orig_app/app/controllers/groups/harbor/application_controller.rb to rust_app/src/controllers/groups/harbor/application_controller.rs
+// Ported as Actix-web handler, see file comment for details
+// Session and flash handling are stubbed.
+2025-05-01: Ported orig_app/app/controllers/groups/harbor/artifacts_controller.rb to rust_app/src/controllers/groups/harbor/artifacts_controller.rs
+2025-05-01 12:15:12 | orig_app/app/controllers/groups/harbor/repositories_controller.rb -> rust_app/src/controllers/groups/harbor/repositories_controller.rs
+2025-05-01: Ported orig_app/app/controllers/groups/registry/repositories_controller.rb to rust_app/src/controllers/groups/registry/repositories_controller.rs
+2025-05-01: Ported orig_app/app/controllers/concerns/boards_actions.rb to rust_app/src/controllers/concerns/boards_actions.rs
+2025-05-01: Ported orig_app/app/controllers/groups/settings/applications_controller.rb to rust_app/src/controllers/groups/settings/applications.rs
+2025-05-01: Ported orig_app/app/controllers/groups/settings/ci_cd_controller.rb to rust_app/src/controllers/groups/settings/ci_cd.rs (see file comment for details)
+2025-05-01 | orig_app/app/controllers/groups/settings/integrations_controller.rb -> rust_app/src/controllers/groups/settings/integrations.rs
+2025-05-01: Ported orig_app/app/controllers/groups/settings/packages_and_registries_controller.rb to rust_app/src/controllers/groups/settings/packages_and_registries.rs
+2025-05-01 14:30:20 | orig_app/app/controllers/groups/settings/repository_controller.rb -> rust_app/src/controllers/groups/settings/repository_controller.rs
+2025-05-01: Ported orig_app/app/controllers/groups/settings/slacks_controller.rb to rust_app/src/controllers/groups/settings/slacks_controller.rs
+2025-05-01: Ported orig_app/app/controllers/groups/achievements_controller.rb to rust_app/src/controllers/groups/achievements_controller.rs
+2025-05-01 | orig_app/app/controllers/groups/application_controller.rb -> rust_app/src/controllers/groups/application_controller.rs
+2025-05-01: Ported orig_app/app/controllers/groups/avatars_controller.rb to rust_app/src/controllers/groups/avatars_controller.rs
+2025-05-01: Ported orig_app/app/controllers/groups/boards_controller.rb to rust_app/src/controllers/groups/boards_controller.rs
+2025-05-01: Ported orig_app/app/controllers/groups/bulk_placeholder_assignments_controller.rb to rust_app/src/controllers/groups/bulk_placeholder_assignments_controller.rs
+2025-05-01 14:53:14 | orig_app/app/controllers/groups/children_controller.rb -> rust_app/src/controllers/groups/children_controller.rs
+2025-05-01: Ported orig_app/app/controllers/groups/custom_emoji_controller.rb to rust_app/src/controllers/groups/custom_emoji_controller.rs
+2025-05-01: Ported orig_app/app/controllers/groups/dependency_proxies_controller.rb to rust_app/src/controllers/groups/dependency_proxies_controller.rs
+# - Created DependencyProxiesController struct and logic for show action and dependency_proxy accessor
+# - Registered module in rust_app/src/controllers/groups/mod.rs
+2025-05-01 | orig_app/app/controllers/groups/dependency_proxy_for_containers_controller.rb -> rust_app/src/controllers/groups/dependency_proxy/dependency_proxy_for_containers_controller.rs
+2025-05-01 15:14:24 | orig_app/app/controllers/groups/deploy_tokens_controller.rb -> rust_app/src/controllers/groups/deploy_tokens_controller.rs
+// Ported as Actix-web handler, see file comment for details
+2025-05-01 15:18:13 | Ported orig_app/app/controllers/groups/group_links_controller.rb -> rust_app/src/controllers/groups/group_links_controller.rs
+2025-05-01 15:30:00 | Ported orig_app/app/controllers/groups/group_members_controller.rb -> rust_app/src/controllers/groups/group_members_controller.rs
+2025-05-01 15:30:22 | Ported orig_app/app/controllers/groups/labels_controller.rb -> rust_app/src/controllers/groups_labels.rs
+2025-05-01 15:35:32 | orig_app/app/controllers/groups/milestones_controller.rb -> rust_app/src/controllers/groups/milestones_controller.rs
+2025-05-01 15:37:53 | orig_app/app/controllers/groups/packages_controller.rb -> rust_app/src/controllers/groups/packages_controller.rs
+2025-05-01 15:51:27 | orig_app/app/controllers/groups/releases_controller.rb -> rust_app/src/controllers/groups/releases_controller.rs
+2025-05-01 16:00:00 | Ported orig_app/app/controllers/groups/runners_controller.rb -> rust_app/src/controllers/groups/runners_controller.rs
+2025-05-01 | Ported orig_app/app/controllers/groups/uploads_controller.rb -> rust_app/src/controllers/groups/uploads_controller.rs
+2025-05-01 | Ported orig_app/app/controllers/groups/usage_quotas_controller.rb -> rust_app/src/controllers/groups/usage_quotas_controller.rs
+2025-05-01: Ported orig_app/app/controllers/groups/variables_controller.rb to rust_app/src/controllers/groups/variables_controller.rs
+2025-05-01: Ported orig_app/app/controllers/groups/work_items_controller.rb to rust_app/src/controllers/groups/work_items_controller.rs
+2025-05-01 16:12:01 | orig_app/app/controllers/import/base_controller.rb -> rust_app/src/controllers/import/base_controller.rs
+2025-05-01: Ported orig_app/app/controllers/import/bitbucket_controller.rb to rust_app/src/controllers/import/bitbucket_controller.rs
+2025-05-01: Ported orig_app/app/controllers/import/bitbucket_server_controller.rb to rust_app/src/controllers/import/bitbucket_server_controller.rs
+2025-05-01: Ported orig_app/app/controllers/import/bulk_imports_controller.rb to rust_app/src/controllers/import/bulk_imports_controller.rs
+2025-05-01 16:30:00 | orig_app/app/controllers/import/fogbugz_controller.rb -> rust_app/src/controllers/import/fogbugz_controller.rs
+// Ported as Actix-web handler, see file comment for details
+2025-05-01 16:35:00 | orig_app/app/controllers/import/github_controller.rb -> rust_app/src/controllers/import/github_controller.rs
+// Ported as Actix-web handler, see file comment for details
+2025-05-01: Ported orig_app/app/controllers/import/github_groups_controller.rb to rust_app/src/controllers/import/github_groups_controller.rs (status endpoint, see file comment for details)
+// Ported as Actix-web handler, see file comment for details
+2025-05-01: Ported orig_app/app/controllers/import/gitlab_groups_controller.rb to rust_app/src/controllers/import/gitlab_groups_controller.rs
+2025-05-01: Ported orig_app/app/controllers/import/manifest_controller.rb to rust_app/src/controllers/import/manifest_controller.rs
+2025-05-01 16:59:38 | orig_app/app/controllers/import/source_users_controller.rb -> rust_app/src/controllers/import/source_users_controller.rs
+// Ported as Actix-web handler, see file comment for details
+2025-05-01: Ported orig_app/app/controllers/import/url_controller.rb to rust_app/src/controllers/import/url_controller.rs
+2025-05-01 | orig_app/app/controllers/jira_connect/app_descriptor_controller.rb -> rust_app/src/controllers/jira_connect/app_descriptor_controller.rs
+2025-05-01  |  orig_app/app/controllers/jira_connect/application_controller.rb -> rust_app/src/controllers/jira_connect/application_controller.rs
+2025-05-01 17:10:26 | Ported orig_app/app/controllers/jira_connect/branches_controller.rb to rust_app/src/controllers/jira_connect/branches_controller.rs
+2025-05-01: Ported orig_app/app/controllers/jira_connect/events_controller.rb to rust_app/src/controllers/jira_connect/events_controller.rs
+2025-05-01: Ported orig_app/app/controllers/jira_connect/installations_controller.rb to rust_app/src/controllers/jira_connect/installations_controller.rs
+2025-05-01: Ported orig_app/app/controllers/jira_connect/oauth_application_ids_controller.rb to rust_app/src/controllers/jira_connect/oauth_application_ids_controller.rs
+2025-05-01 | orig_app/app/controllers/jira_connect/oauth_callbacks_controller.rb -> rust_app/src/controllers/jira_connect/oauth_callbacks_controller.rs
+2025-05-01: Ported orig_app/app/controllers/jira_connect/public_keys_controller.rb to rust_app/src/controllers/jira_connect/public_keys_controller.rs
+2025-05-01T17:32:55-04:00: Ported orig_app/app/controllers/jira_connect/repositories_controller.rb to rust_app/src/controllers/jira_connect/repositories_controller.rs
+2025-05-01T17:39:52 | Ported orig_app/app/controllers/ldap/omniauth_callbacks_controller.rb to rust_app/src/controllers/ldap/omniauth_callbacks_controller.rs
+2025-05-01T17:45:00-04:00: Ported orig_app/app/controllers/jira_connect/subscriptions_controller.rb to rust_app/src/controllers/jira_connect/subscriptions_controller.rs
+2025-05-01T17:50:00-04:00: Ported orig_app/app/controllers/jira_connect/workspaces_controller.rb to rust_app/src/controllers/jira_connect/workspaces_controller.rs
+2025-05-01: Ported orig_app/app/controllers/mailgun/webhooks_controller.rb to rust_app/src/controllers/mailgun/webhooks_controller.rs (feature flag, HMAC signature validation, Actix-web endpoint)
+// 2025-05-01 | Ported orig_app/app/controllers/oauth/applications_controller.rb to rust_app/src/controllers/oauth/applications_controller.rs
+2025-05-01 17:47:04 | orig_app/app/controllers/oauth/authorizations_controller.rb -> rust_app/src/controllers/oauth/authorizations_controller.rs
+2025-05-01: Ported orig_app/app/controllers/oauth/authorized_applications_controller.rb to rust_app/src/controllers/oauth/authorized_applications_controller.rs
+2025-05-01 | orig_app/app/controllers/oauth/device_authorizations_controller.rb -> rust_app/src/controllers/oauth/device_authorizations_controller.rs
+2025-05-01: Ported orig_app/app/controllers/oauth/token_info_controller.rb to rust_app/src/controllers/oauth/token_info_controller.rs
+2025-05-01: Ported orig_app/app/controllers/oauth/tokens_controller.rb to rust_app/src/controllers/oauth/tokens_controller.rs
+2025-05-01 18:02:08 | orig_app/app/controllers/organizations/application_controller.rb -> rust_app/src/controllers/organizations/application_controller.rs

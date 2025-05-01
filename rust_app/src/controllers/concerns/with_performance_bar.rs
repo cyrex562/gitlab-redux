@@ -1,3 +1,6 @@
+// Ported from: orig_app/app/controllers/concerns/with_performance_bar.rb (Ruby)
+// Ported on: 2025-04-29
+
 use actix_web::{web, HttpRequest, HttpResponse};
 use lazy_static::lazy_static;
 use std::sync::atomic::{AtomicBool, Ordering};

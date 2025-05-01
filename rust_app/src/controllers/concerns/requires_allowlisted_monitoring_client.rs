@@ -1,3 +1,14 @@
+// Ported from: orig_app/app/controllers/concerns/requires_allowlisted_monitoring_client.rb
+// Ported: 2025-04-29
+// This concern enforces that only allowlisted IPs or valid tokens can access certain monitoring endpoints.
+//
+// Ruby logic covered:
+// - before_action :validate_ip_allowlisted_or_valid_token!
+// - client_ip_allowlisted? (with dev localhost logic)
+// - ip_allowlist (from settings)
+// - valid_token? (query param or header, secure compare)
+// - render_404 (returns not found error)
+
 use crate::config::Settings;
 use actix_web::{
     dev::ServiceRequest, error::Error, http::StatusCode, web::Data, HttpResponse, Responder,

@@ -1,4 +1,4 @@
-# frozen_string_literal: true
+-# frozen_string_literal: true
 
 class Explore::SnippetsController < Explore::ApplicationController
   include Gitlab::NoteableMetadata

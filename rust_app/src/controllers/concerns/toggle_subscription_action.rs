@@ -1,3 +1,14 @@
+// Ported from: orig_app/app/controllers/concerns/toggle_subscription_action.rb
+//
+// This module provides a trait and handler struct for toggling subscriptions on a subscribable resource.
+// It is designed to be integrated with Actix-web controllers.
+//
+// Traits for Project, User, and Subscribable are defined for extensibility.
+//
+// Usage:
+// Implement the ToggleSubscriptionAction trait for your handler, providing concrete implementations for
+// subscribable_project and subscribable_resource.
+
 use actix_web::{web, HttpRequest, HttpResponse, Result};
 use std::sync::Arc;
 

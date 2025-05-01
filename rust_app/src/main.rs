@@ -23,6 +23,8 @@ use crate::controllers::admin::{
     ClustersController, CohortsController, DashboardController, HealthCheckController,
     SystemInfoController, VersionCheckController,
 };
+use crate::controllers::groups::settings::repository_controller;
+use crate::controllers::jira_connect::{app_descriptor_controller, oauth_callbacks_controller};
 use crate::controllers::{
     application, health, jira_connect_app_descriptor, sessions, users, well_known,
 };
@@ -105,7 +107,19 @@ async fn main() -> Result<()> {
         .route("/health", get(handlers::health::check))
         .route(
             "/jira_connect/app_descriptor.json",
+            get(app_descriptor_controller::show),
+        )
+        .route(
+            "/jira_connect/app_descriptor.json",
             get(jira_connect_app_descriptor::app_descriptor),
+        )
+        .route(
+            "/groups/:group_id/settings/repository/deploy_token",
+            post(repository_controller::create_deploy_token),
+        )
+        .route(
+            "/jira_connect/oauth/callback",
+            get(oauth_callbacks_controller::index),
         )
         .nest_service("/assets", ServeDir::new("static/assets"))
         .layer(TraceLayer::new_for_http())

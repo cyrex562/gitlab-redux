@@ -1,3 +1,9 @@
+// Ported from: orig_app/app/controllers/explore/projects_controller.rb
+// Ported on: 2025-04-30
+// This file implements the Explore::ProjectsController from the Ruby codebase.
+//
+// See porting_log.txt for details.
+
 use crate::controllers::concerns::{
     PageLimiter, ParamsBackwardCompatibility, RendersMemberAccess, RendersProjectsList,
     SortingHelper, SortingPreference,

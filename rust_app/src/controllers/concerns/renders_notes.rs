@@ -1,73 +1,71 @@
-use actix_web::{web, HttpRequest, HttpResponse};
-use serde::{Deserialize, Serialize};
-use std::sync::Arc;
+// Ported from: orig_app/app/controllers/concerns/renders_notes.rb
+// Ported: 2025-04-29
+//
+// This module provides methods for preloading and preparing notes for rendering.
 
-/// This trait provides functionality for rendering notes in controllers
+use crate::models::{Note, Project, User};
+use std::collections::HashMap;
+
+/// Trait for rendering notes, similar to the Ruby RendersNotes concern
 pub trait RendersNotes {
-    /// Render notes for the current request
-    fn render_notes(&self, req: &HttpRequest) -> HttpResponse;
+    /// Prepares notes for rendering by preloading associations and running render service
+    fn prepare_notes_for_rendering(
+        &self,
+        notes: &mut [Note],
+        project: Option<&Project>,
+        current_user: Option<&User>,
+    );
+
+    /// Preloads the noteable association for regular notes
+    fn preload_noteable_for_regular_notes(&self, notes: &mut [Note]);
+
+    /// Preloads the namespace association for notes
+    fn preload_note_namespace(&self, notes: &mut [Note]);
+
+    /// Preloads the max access for note authors
+    fn preload_max_access_for_authors(&self, notes: &[Note], project: Option<&Project>);
+
+    /// Preloads the author status for notes
+    fn preload_author_status(&self, notes: &mut [Note]);
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Note {
-    id: i32,
-    note: String,
-    noteable_id: i32,
-    noteable_type: String,
-    author_id: i32,
-    created_at: String,
-    updated_at: String,
-    position: Option<i32>,
-    resolved: bool,
-    resolved_by_id: Option<i32>,
-    resolved_at: Option<String>,
-}
+/// Example implementation of RendersNotes
+pub struct RendersNotesImpl;
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct RendersNotesHandler {
-    current_user: Option<Arc<User>>,
-}
-
-impl RendersNotesHandler {
-    pub fn new(current_user: Option<Arc<User>>) -> Self {
-        RendersNotesHandler { current_user }
+impl RendersNotes for RendersNotesImpl {
+    fn prepare_notes_for_rendering(
+        &self,
+        notes: &mut [Note],
+        project: Option<&Project>,
+        current_user: Option<&User>,
+    ) {
+        self.preload_noteable_for_regular_notes(notes);
+        self.preload_note_namespace(notes);
+        self.preload_max_access_for_authors(notes, project);
+        self.preload_author_status(notes);
+        // TODO: Call Notes::RenderService equivalent here
+        // e.g., NotesRenderService::new(current_user).execute(notes)
     }
-    
-    fn fetch_notes(&self, noteable_id: i32, noteable_type: &str) -> Vec<Note> {
-        // This would be implemented to fetch notes from the database
-        // For now, we'll return an empty vector
-        Vec::new()
-    }
-}
 
-impl RendersNotes for RendersNotesHandler {
-    fn render_notes(&self, req: &HttpRequest) -> HttpResponse {
-        // Check if user is authenticated
-        if self.current_user.is_none() {
-            return HttpResponse::Unauthorized().finish();
+    fn preload_noteable_for_regular_notes(&self, notes: &mut [Note]) {
+        // TODO: Implement logic to preload noteable for notes that are not for_commit
+    }
+
+    fn preload_note_namespace(&self, notes: &mut [Note]) {
+        // TODO: Implement logic to preload namespace association
+    }
+
+    fn preload_max_access_for_authors(&self, notes: &[Note], project: Option<&Project>) {
+        if let Some(_project) = project {
+            let user_ids: Vec<_> = notes.iter().map(|n| n.author_id).collect();
+            // TODO: Implement logic to get max member access for user_ids
+            // and contribution check for users with NO_ACCESS
         }
-        
-        // Get noteable ID and type from request
-        let noteable_id = req.match_info().get("noteable_id")
-            .and_then(|s| s.parse::<i32>().ok())
-            .unwrap_or(0);
-            
-        let noteable_type = req.match_info().get("noteable_type")
-            .map(|s| s.to_string())
-            .unwrap_or_default();
-            
-        // Fetch notes
-        let notes = self.fetch_notes(noteable_id, &noteable_type);
-        
-        // Render notes as JSON
-        HttpResponse::Ok()
-            .content_type("application/json")
-            .json(notes)
+    }
+
+    fn preload_author_status(&self, notes: &mut [Note]) {
+        // TODO: Implement logic to preload author status
     }
 }
 
-// This would be implemented in a separate module
-pub struct User {
-    id: i32,
-    // Add other fields as needed
-} 
+// Add additional helper structs or functions as needed.

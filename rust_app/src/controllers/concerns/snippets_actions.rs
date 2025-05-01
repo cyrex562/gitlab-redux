@@ -1,3 +1,5 @@
+// Ported from orig_app/app/controllers/concerns/snippets_actions.rb on 2025-04-29
+// This trait provides actions for handling snippets, ported from the Ruby concern.
 use actix_web::{web, HttpResponse, Responder};
 use serde::Deserialize;
 
@@ -22,25 +24,30 @@ pub trait SnippetsActions:
     fn set_snippet(&mut self, snippet: Snippet);
     fn is_js_request(&self) -> bool;
     fn workhorse_set_content_type(&self);
-    fn convert_line_endings(&self, content: &str, line_ending: &str) -> String;
+    fn convert_line_endings(&self, content: &str, line_ending: &str) -> String {
+        // Ported from Ruby: params[:line_ending] == 'raw' ? content : content.gsub(/\r\n/, "\n")
+        if line_ending == "raw" {
+            content.to_string()
+        } else {
+            content.replace("\r\n", "\n")
+        }
+    }
     fn send_snippet_blob(&self, snippet: &Snippet, blob: &Blob) -> HttpResponse;
     fn sanitized_file_name(&self, name: &str) -> String;
     fn content_disposition(&self) -> String;
 
     fn edit(&self) -> impl Responder {
-        // In a real implementation, we'd need to handle the view rendering
+        // In a real implementation, this would render the edit view
         HttpResponse::Ok().finish()
     }
 
     fn raw(&self) -> impl Responder {
         self.workhorse_set_content_type();
-
         let blob = self.blob();
-
-        if let Some(snippet) = blob.snippet() {
+        // In Ruby: if defined?(blob.snippet)
+        if blob.has_snippet() {
             let data = self.convert_line_endings(&blob.data, "raw");
             let filename = self.sanitized_file_name(&blob.name);
-
             HttpResponse::Ok()
                 .content_type("text/plain; charset=utf-8")
                 .header("Content-Disposition", self.content_disposition())
@@ -54,7 +61,7 @@ pub trait SnippetsActions:
         if self.is_js_request() {
             if self.snippet().embeddable() {
                 self.conditionally_expand_blobs(self.blobs());
-                // In a real implementation, we'd need to handle the view rendering
+                // Would render 'shared/snippets/show' in a real implementation
                 HttpResponse::Ok().finish()
             } else {
                 HttpResponse::NotFound().finish()
@@ -64,8 +71,7 @@ pub trait SnippetsActions:
             let discussions = self.snippet().discussions();
             let notes =
                 self.prepare_notes_for_rendering(discussions.iter().flat_map(|d| d.notes()));
-
-            // In a real implementation, we'd need to handle the view rendering
+            // Would render 'show' in a real implementation
             HttpResponse::Ok().finish()
         }
     }

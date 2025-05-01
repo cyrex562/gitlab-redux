@@ -6,6 +6,7 @@ pub mod graceful_timeout_handling;
 pub mod onboarding_redirectable;
 mod product_analytics_tracking;
 mod project_stats_refresh_conflicts_guard;
+pub mod sourcegraph_decorator;
 mod static_object_external_storage;
 mod static_object_external_storage_csp;
 mod stream_diffs;

@@ -1,8 +1,13 @@
-use actix_web::{HttpResponse, Responder};
+// Ported from orig_app/app/controllers/concerns/repository_settings_redirect.rb
 use crate::models::Project;
+use actix_web::{HttpResponse, Responder};
 
 pub trait RepositorySettingsRedirect {
-    fn redirect_to_repository_settings(&self, project: &Project, anchor: Option<&str>) -> impl Responder;
+    fn redirect_to_repository_settings(
+        &self,
+        project: &Project,
+        anchor: Option<&str>,
+    ) -> impl Responder;
 }
 
 impl<T> RepositorySettingsRedirect for T
@@ -14,11 +19,15 @@ where
         InitError = (),
     >,
 {
-    fn redirect_to_repository_settings(&self, project: &Project, anchor: Option<&str>) -> impl Responder {
+    fn redirect_to_repository_settings(
+        &self,
+        project: &Project,
+        anchor: Option<&str>,
+    ) -> impl Responder {
         let mut path = format!("/projects/{}/settings/repository", project.id);
         if let Some(anchor) = anchor {
             path.push_str(&format!("#{}", anchor));
         }
         HttpResponse::Found().header("Location", path).finish()
     }
-} 
+}

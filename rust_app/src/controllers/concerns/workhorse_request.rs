@@ -1,3 +1,6 @@
+// Ported from: orig_app/app/controllers/concerns/workhorse_request.rb
+// This module provides a trait and handler to verify GitLab Workhorse API requests.
+// It checks for the 'Gitlab-Workhorse-Api-Request' header, as in the Ruby concern.
 use actix_web::{web, HttpRequest, HttpResponse, Result};
 use std::collections::HashMap;
 
@@ -15,20 +18,13 @@ impl WorkhorseRequestHandler {
 
 impl WorkhorseRequest for WorkhorseRequestHandler {
     fn verify_workhorse_api(&self, req: &HttpRequest) -> Result<()> {
-        // In a real implementation, this would verify the request headers
-        // against a secret key or other authentication mechanism
-        let headers = req.headers();
-
-        // Check for the presence of the Workhorse API header
-        if !headers.contains_key("X-Gitlab-Workhorse-Api-Request") {
+        // Check for the presence of the Workhorse API header (matching Ruby concern)
+        if !req.headers().contains_key("Gitlab-Workhorse-Api-Request") {
             return Err(actix_web::error::ErrorForbidden(
                 "Invalid Workhorse API request",
             ));
         }
-
-        // Additional verification logic would go here
-        // For example, checking a signature or token
-
+        // TODO: Implement JWT verification as in Gitlab::Workhorse.verify_api_request!
         Ok(())
     }
 }

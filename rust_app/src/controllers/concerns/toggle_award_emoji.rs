@@ -1,3 +1,4 @@
+// Ported from orig_app/app/controllers/concerns/toggle_award_emoji.rb on 2025-04-29
 use actix_web::{web, HttpRequest, HttpResponse, Result};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;

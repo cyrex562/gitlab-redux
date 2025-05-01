@@ -1,3 +1,4 @@
+// Ported from orig_app/app/controllers/dashboard/application_controller.rb on 2025-04-29
 use crate::controllers::concerns::{ControllerWithCrossProjectAccessCheck, RecordUserLastActivity};
 use crate::models::user::User;
 use actix_web::{web, HttpResponse};
@@ -18,6 +19,8 @@ impl DashboardApplicationController {
         Self { user }
     }
 
+    /// Returns the projects the user is authorized for, sorted by activity and non-archived.
+    /// Ported from Ruby: current_user.authorized_projects.sorted_by_activity.non_archived
     pub fn projects(&self) -> Vec<i32> {
         // TODO: Implement authorized_projects.sorted_by_activity.non_archived
         // This is a placeholder that needs to be implemented with proper project filtering

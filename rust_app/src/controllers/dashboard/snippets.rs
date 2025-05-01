@@ -1,3 +1,4 @@
+// Ported from orig_app/app/controllers/dashboard/snippets_controller.rb on 2025-04-30
 use crate::controllers::concerns::{GitlabNoteableMetadata, PaginatedCollection, SnippetsSort};
 use crate::controllers::dashboard::DashboardApplicationController;
 use crate::services::{snippets::CountService, snippets::SnippetsFinder};
@@ -12,6 +13,8 @@ impl SnippetsController {
         Self { base }
     }
 
+    /// GET /dashboard/snippets
+    /// Ported from Ruby index action
     pub async fn index(&self, query: web::Query<SnippetQuery>) -> HttpResponse {
         let snippet_counts =
             CountService::new(self.base.user.clone(), Some(self.base.user.clone()))

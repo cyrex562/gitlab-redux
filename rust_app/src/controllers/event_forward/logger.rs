@@ -1,3 +1,4 @@
+// Ported from orig_app/app/controllers/event_forward/logger.rb
 use crate::logging::JsonLogger;
 
 pub struct Logger {

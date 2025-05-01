@@ -1,3 +1,7 @@
+// Ported from: orig_app/app/controllers/concerns/static_object_external_storage_csp.rb
+// This module provides logic to add an external storage URL to the CSP connect-src directive if enabled.
+// Usage: Integrate StaticObjectExternalStorageCSPHandler into your controller setup to modify CSP headers as needed.
+
 use actix_web::{web, HttpRequest, HttpResponse, Result};
 use std::sync::Arc;
 

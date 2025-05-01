@@ -1,3 +1,8 @@
+// Ported from orig_app/app/controllers/concerns/sends_blob.rb on 2025-04-29
+//
+// This file implements the SendsBlob concern logic from the original Ruby code.
+//
+
 use crate::controllers::concerns::send_file_upload::SendFileUpload;
 use crate::models::blob::Blob;
 use crate::models::lfs_object::LfsObject;

@@ -1,3 +1,14 @@
+// Ported from: orig_app/app/controllers/concerns/snippet_authorizations.rb
+// Ported: 2025-04-29
+//
+// This module provides authorization methods for snippet-related actions.
+//
+// Methods:
+//   - authorize_read_snippet
+//   - authorize_update_snippet
+//   - authorize_admin_snippet
+//   - authorize_create_snippet
+
 use crate::models::snippet::Snippet;
 use crate::models::user::User;
 use actix_web::{web, HttpRequest, HttpResponse};
@@ -14,6 +25,13 @@ pub trait SnippetAuthorizations {
 
     /// Authorize updating a snippet
     fn authorize_update_snippet(
+        &self,
+        snippet: &Snippet,
+        current_user: Option<&User>,
+    ) -> Result<(), HttpResponse>;
+
+    /// Authorize administering a snippet
+    fn authorize_admin_snippet(
         &self,
         snippet: &Snippet,
         current_user: Option<&User>,
@@ -56,8 +74,20 @@ impl SnippetAuthorizations for SnippetAuthorizationsHandler {
         }
     }
 
+    fn authorize_admin_snippet(
+        &self,
+        snippet: &Snippet,
+        current_user: Option<&User>,
+    ) -> Result<(), HttpResponse> {
+        if current_user.map_or(false, |user| user.can_admin_snippet(snippet)) {
+            Ok(())
+        } else {
+            Err(HttpResponse::NotFound().finish())
+        }
+    }
+
     fn authorize_create_snippet(&self, current_user: Option<&User>) -> Result<(), HttpResponse> {
-        if current_user.is_some() {
+        if current_user.map_or(false, |user| user.can_create_snippet()) {
             Ok(())
         } else {
             Err(HttpResponse::NotFound().finish())
@@ -88,6 +118,16 @@ pub mod models {
             }
 
             pub fn can_update_snippet(&self, snippet: &Snippet) -> bool {
+                // Implement permission check
+                true
+            }
+
+            pub fn can_admin_snippet(&self, snippet: &Snippet) -> bool {
+                // Implement permission check
+                true
+            }
+
+            pub fn can_create_snippet(&self) -> bool {
                 // Implement permission check
                 true
             }

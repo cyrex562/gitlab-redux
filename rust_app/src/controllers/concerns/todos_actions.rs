@@ -1,5 +1,8 @@
+// Ported from orig_app/app/controllers/concerns/todos_actions.rb on 2025-04-29
+// This file implements the TodosActions concern logic from Ruby in Rust.
+
 use actix_web::{web, HttpRequest, HttpResponse, Result};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 // Define the Todo struct
@@ -46,7 +49,7 @@ impl TodosActionsHandler {
     pub fn new(current_user: Arc<dyn User>) -> Self {
         TodosActionsHandler { current_user }
     }
-    
+
     fn get_issuable(&self, req: &HttpRequest) -> Arc<dyn Issuable> {
         // In a real implementation, this would extract the issuable from the request
         // For now, we'll return a placeholder
@@ -58,21 +61,21 @@ impl TodosActions for TodosActionsHandler {
     fn create(&self, req: &HttpRequest) -> Result<HttpResponse> {
         // Get the issuable from the request
         let issuable = self.get_issuable(req);
-        
+
         // Create a todo service and mark the todo
         let todo_service = TodoService::new();
         let todo = todo_service.mark_todo(issuable, self.current_user.clone());
-        
+
         // Create a todos finder and count the pending todos
         let todos_finder = TodosFinder::new(self.current_user.clone(), "pending");
         let count = todos_finder.execute().len();
-        
+
         // Create the response
         let response = TodoResponse {
             count,
             delete_path: format!("/dashboard/todos/{}", todo.id),
         };
-        
+
         // Return the JSON response
         Ok(HttpResponse::Ok().json(response))
     }
@@ -85,7 +88,7 @@ impl TodoService {
     pub fn new() -> Self {
         TodoService
     }
-    
+
     pub fn mark_todo(&self, issuable: Arc<dyn Issuable>, user: Arc<dyn User>) -> Todo {
         // In a real implementation, this would create a todo in the database
         // For now, we'll return a placeholder
@@ -115,10 +118,10 @@ impl TodosFinder {
             state: state.to_string(),
         }
     }
-    
+
     pub fn execute(&self) -> Vec<Todo> {
         // In a real implementation, this would query the database for todos
         // For now, we'll return a placeholder
         vec![]
     }
-} 
+}

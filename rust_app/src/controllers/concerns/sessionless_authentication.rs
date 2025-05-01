@@ -1,3 +1,6 @@
+// Ported from: orig_app/app/controllers/concerns/sessionless_authentication.rb
+// This file implements sessionless authentication logic for PAT, RSS, and static object tokens.
+
 use crate::auth::request_authenticator::RequestAuthenticator;
 use crate::models::user::User;
 use crate::settings::ApplicationSettings;

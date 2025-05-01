@@ -1,152 +1,70 @@
-use crate::{
-    config::Settings,
-    models::{Project, Routable},
-    utils::authorization::Can,
-};
-use actix_web::{
-    dev::ServiceRequest, error::Error, http::StatusCode, web::Data, HttpResponse, Responder,
-};
-use std::sync::Arc;
+// Ported from: orig_app/app/controllers/concerns/routable_actions.rb
+// This module provides RoutableActions trait for controller logic.
+use actix_web::{HttpRequest, HttpResponse};
 
 pub trait RoutableActions {
-    fn find_routable<T: Routable>(
+    // Find a routable entity by its full path, authorize, and ensure canonical path.
+    fn find_routable(
         &self,
-        routable_klass: &str,
+        routable_klass: &dyn RoutableClass,
         routable_full_path: &str,
         full_path: &str,
-        extra_authorization_proc: Option<Arc<dyn Fn(&T) -> bool + Send + Sync>>,
-    ) -> Result<Option<T>, Error>;
+        req: &HttpRequest,
+        extra_authorization: Option<&dyn Fn(&dyn Routable) -> bool>,
+    ) -> Option<Box<dyn Routable>> {
+        let routable = routable_klass.find_by_full_path(routable_full_path, req.method() == "GET");
+        if self.routable_authorized(routable.as_deref(), extra_authorization) {
+            self.ensure_canonical_path(routable.as_deref().unwrap(), routable_full_path, req);
+            routable
+        } else {
+            self.perform_not_found_actions(
+                routable.as_deref(),
+                &self.not_found_actions(),
+                full_path,
+            );
+            if !self.performed() {
+                self.route_not_found();
+            }
+            None
+        }
+    }
 
-    fn not_found_actions(
-        &self,
-    ) -> Vec<Arc<dyn Fn(&dyn Routable, &str) -> Result<(), Error> + Send + Sync>>;
+    fn not_found_actions(&self) -> Vec<Box<dyn Fn(&dyn Routable, &str)>>;
 
     fn perform_not_found_actions(
         &self,
-        routable: &dyn Routable,
-        actions: &[Arc<dyn Fn(&dyn Routable, &str) -> Result<(), Error> + Send + Sync>],
+        routable: Option<&dyn Routable>,
+        actions: &[Box<dyn Fn(&dyn Routable, &str)>],
         full_path: &str,
-    ) -> Result<(), Error>;
+    );
 
-    fn routable_authorized<T: Routable>(
+    fn routable_authorized(
         &self,
-        routable: &T,
-        extra_authorization_proc: Option<Arc<dyn Fn(&T) -> bool + Send + Sync>>,
+        routable: Option<&dyn Routable>,
+        extra_authorization: Option<&dyn Fn(&dyn Routable) -> bool>,
     ) -> bool;
 
-    fn ensure_canonical_path<T: Routable>(
-        &self,
-        routable: &T,
-        routable_full_path: &str,
-    ) -> Result<(), Error>;
-}
-
-pub struct RoutableActionsImpl {
-    settings: Data<Settings>,
-}
-
-impl RoutableActionsImpl {
-    pub fn new(settings: Data<Settings>) -> Self {
-        Self { settings }
-    }
-
-    fn build_canonical_path<T: Routable>(&self, routable: &T) -> String {
-        format!("/{}", routable.full_path())
-    }
-
-    fn route_not_found(&self) -> HttpResponse {
-        HttpResponse::NotFound()
-            .content_type("text/html")
-            .body(include_str!("../../templates/errors/not_found.html"))
-    }
-}
-
-impl RoutableActions for RoutableActionsImpl {
-    fn find_routable<T: Routable>(
-        &self,
-        routable_klass: &str,
-        routable_full_path: &str,
-        full_path: &str,
-        extra_authorization_proc: Option<Arc<dyn Fn(&T) -> bool + Send + Sync>>,
-    ) -> Result<Option<T>, Error> {
-        let routable = T::find_by_full_path(routable_full_path, true)?;
-
-        if let Some(routable) = &routable {
-            if self.routable_authorized(routable, extra_authorization_proc.clone()) {
-                self.ensure_canonical_path(routable, routable_full_path)?;
-                Ok(routable)
-            } else {
-                self.perform_not_found_actions(
-                    routable.as_ref(),
-                    &self.not_found_actions(),
-                    full_path,
-                )?;
-                Ok(None)
-            }
-        } else {
-            Ok(None)
-        }
-    }
-
-    fn not_found_actions(
-        &self,
-    ) -> Vec<Arc<dyn Fn(&dyn Routable, &str) -> Result<(), Error> + Send + Sync>> {
-        vec![Arc::new(|routable, _full_path| {
-            if let Some(project) = routable.as_any().downcast_ref::<Project>() {
-                let label = project.external_authorization_classification_label();
-                if !crate::utils::external_authorization::access_allowed(label) {
-                    let reason = crate::utils::external_authorization::rejection_reason(label)
-                        .unwrap_or_else(|| {
-                            "External authorization denied access to this project".to_string()
-                        });
-                    return Err(actix_web::error::ErrorForbidden(reason));
-                }
-            }
-            Ok(())
-        })]
-    }
-
-    fn perform_not_found_actions(
+    fn ensure_canonical_path(
         &self,
         routable: &dyn Routable,
-        actions: &[Arc<dyn Fn(&dyn Routable, &str) -> Result<(), Error> + Send + Sync>],
-        full_path: &str,
-    ) -> Result<(), Error> {
-        for action in actions {
-            action(routable, full_path)?;
-        }
-        Ok(())
-    }
-
-    fn routable_authorized<T: Routable>(
-        &self,
-        routable: &T,
-        extra_authorization_proc: Option<Arc<dyn Fn(&T) -> bool + Send + Sync>>,
-    ) -> bool {
-        let action = format!("read_{}", routable.type_name().to_lowercase());
-        if !Can::can(&action, routable) {
-            return false;
-        }
-
-        if let Some(proc) = extra_authorization_proc {
-            proc(routable)
-        } else {
-            true
-        }
-    }
-
-    fn ensure_canonical_path<T: Routable>(
-        &self,
-        routable: &T,
         routable_full_path: &str,
-    ) -> Result<(), Error> {
-        let canonical_path = routable.full_path();
-        if canonical_path != routable_full_path {
-            let canonical_url = self.build_canonical_path(routable);
-            return Ok(HttpResponse::MovedPermanently()
-                .header("Location", canonical_url)
-                .finish());
-        }
-        Ok(())
-    }
+        req: &HttpRequest,
+    );
+
+    fn performed(&self) -> bool;
+    fn route_not_found(&self);
+}
+
+// Traits for Routable and RoutableClass to be implemented by your models.
+pub trait Routable {
+    fn full_path(&self) -> &str;
+    fn class_name(&self) -> &str;
+}
+
+pub trait RoutableClass {
+    fn find_by_full_path(
+        &self,
+        full_path: &str,
+        follow_redirects: bool,
+    ) -> Option<Box<dyn Routable>>;
 }

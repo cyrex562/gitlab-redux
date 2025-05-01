@@ -1,3 +1,7 @@
+// Ported from: orig_app/app/controllers/concerns/strong_pagination_params.rb
+// Ported on: 2025-04-29
+//
+// This file provides strong pagination parameter extraction for controllers.
 use actix_web::web::Query;
 use actix_web::{web, HttpRequest, Result};
 use serde::{Deserialize, Serialize};

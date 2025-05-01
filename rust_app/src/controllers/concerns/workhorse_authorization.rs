@@ -1,3 +1,24 @@
+// Ported from: orig_app/app/controllers/concerns/workhorse_authorization.rb
+// Ported: 2025-04-29
+//
+// This module provides authorization logic for Workhorse file uploads.
+// It is designed to be used as a controller concern/trait.
+//
+// Methods:
+//   - authorize: Handles the authorization request, sets content type, and returns JSON response.
+//   - file_is_valid: Checks if a file is valid based on extension allowlist.
+//   - uploader_class: Abstract method to provide the uploader implementation.
+//   - maximum_size: Abstract method to provide the max upload size.
+//   - file_extension_allowlist: Returns allowed file extensions.
+//
+// See the Ruby source for more details on the original logic.
+//
+// Usage: Implement the trait for your controller and provide concrete uploader_class and maximum_size.
+//
+// Error handling: Returns 500 Internal Server Error on failure, matching the Ruby rescue block.
+//
+// --- End of ported comment ---
+
 use actix_web::{web, HttpRequest, HttpResponse, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

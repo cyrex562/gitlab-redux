@@ -1,3 +1,7 @@
+// Ported from: orig_app/app/controllers/concerns/skips_already_signed_in_message.rb
+// Ported on: 2025-04-29
+// This concern can be included in devise controllers to skip showing an "already signed in" warning on registrations and logins
+
 use crate::auth::devise::DeviseController;
 use crate::i18n::I18n;
 use actix_web::{web, HttpRequest, HttpResponse};

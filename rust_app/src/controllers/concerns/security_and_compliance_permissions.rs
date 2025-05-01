@@ -1,3 +1,12 @@
+// Ported from orig_app/app/controllers/concerns/security_and_compliance_permissions.rb
+//
+// This module provides a trait and handler struct for security and compliance permissions.
+// It checks if the current user can access security and compliance features for a project.
+//
+// Usage: Call `ensure_security_and_compliance_enabled` in your controller logic.
+//
+// Ported on 2025-04-29.
+
 use crate::authorization::Ability;
 use crate::models::project::Project;
 use crate::models::user::User;

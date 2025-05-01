@@ -1,3 +1,8 @@
+// Ported from: orig_app/app/controllers/concerns/send_file_upload.rb
+// Date ported: 2025-04-29
+// This file implements the SendFileUpload concern from Ruby in Rust.
+// See porting log for details.
+
 use actix_web::{web, HttpRequest, HttpResponse, Responder};
 use std::path::Path;
 use std::collections::HashMap;
@@ -284,4 +289,4 @@ pub mod avatarable {
     impl Avatarable {
         pub const ALLOWED_IMAGE_SCALER_WIDTHS: [i32; 5] = [32, 64, 128, 256, 512];
     }
-} 
+}

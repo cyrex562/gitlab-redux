@@ -1,3 +1,7 @@
+// Ported from: orig_app/app/controllers/concerns/request_payload_logger.rb
+// Ported: 2025-04-29
+// This file implements the RequestPayloadLogger concern in Rust.
+
 use crate::{
     config::Settings,
     models::User,

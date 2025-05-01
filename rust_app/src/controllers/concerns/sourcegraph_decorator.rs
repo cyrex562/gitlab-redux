@@ -1,60 +1,68 @@
-use actix_web::{web, HttpRequest, HttpResponse};
-use serde::{Deserialize, Serialize};
-use std::sync::Arc;
+// Ported from: orig_app/app/controllers/concerns/sourcegraph_decorator.rb
+// This concern injects Sourcegraph settings and updates CSP if Sourcegraph is enabled.
 
-/// This trait provides functionality for decorating content with Sourcegraph integration
+use actix_web::{HttpRequest, HttpResponse};
+use std::collections::HashMap;
+
 pub trait SourcegraphDecorator {
-    /// Get the Sourcegraph URL for the current request
-    fn sourcegraph_url(&self, req: &HttpRequest) -> Option<String>;
-    
-    /// Check if Sourcegraph integration is enabled
-    fn sourcegraph_enabled?(&self) -> bool;
-    
-    /// Get the Sourcegraph project URL
-    fn sourcegraph_project_url(&self) -> Option<String>;
+    fn push_sourcegraph_gon(&self, req: &HttpRequest, gon: &mut HashMap<String, serde_json::Value>);
+    fn update_csp_for_sourcegraph(
+        &self,
+        csp_directives: &mut HashMap<String, Vec<String>>,
+        sourcegraph_enabled: bool,
+        sourcegraph_url: &str,
+        sourcegraph_public_only: bool,
+        project_public: bool,
+    );
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct SourcegraphDecoratorHandler {
-    enabled: bool,
-    base_url: String,
-    project_url: Option<String>,
-}
+pub struct SourcegraphDecoratorHandler;
 
 impl SourcegraphDecoratorHandler {
-    pub fn new(enabled: bool, base_url: String, project_url: Option<String>) -> Self {
-        SourcegraphDecoratorHandler {
-            enabled,
-            base_url,
-            project_url,
-        }
+    pub fn new() -> Self {
+        SourcegraphDecoratorHandler
     }
 }
 
 impl SourcegraphDecorator for SourcegraphDecoratorHandler {
-    fn sourcegraph_url(&self, req: &HttpRequest) -> Option<String> {
-        if !self.sourcegraph_enabled?() {
-            return None;
+    fn push_sourcegraph_gon(
+        &self,
+        _req: &HttpRequest,
+        gon: &mut HashMap<String, serde_json::Value>,
+    ) {
+        // Only push if Sourcegraph is enabled (should be checked by caller)
+        gon.insert(
+            "sourcegraph".to_string(),
+            serde_json::json!({ "url": std::env::var("SOURCEGRAPH_URL").unwrap_or_default() }),
+        );
+    }
+
+    fn update_csp_for_sourcegraph(
+        &self,
+        csp_directives: &mut HashMap<String, Vec<String>>,
+        sourcegraph_enabled: bool,
+        sourcegraph_url: &str,
+        sourcegraph_public_only: bool,
+        project_public: bool,
+    ) {
+        if !sourcegraph_enabled {
+            return;
         }
-        
-        // Get the current path and project URL
-        let path = req.path();
-        let project_url = self.sourcegraph_project_url()?;
-        
-        // Construct the Sourcegraph URL
-        Some(format!("{}/{}", self.base_url, project_url))
-    }
-    
-    fn sourcegraph_enabled?(&self) -> bool {
-        self.enabled
-    }
-    
-    fn sourcegraph_project_url(&self) -> Option<String> {
-        self.project_url.clone()
+        if sourcegraph_public_only && !project_public {
+            return;
+        }
+        // Add connect-src for Sourcegraph
+        let connect_src = csp_directives
+            .entry("connect-src".to_string())
+            .or_insert_with(|| {
+                csp_directives
+                    .get("default-src")
+                    .cloned()
+                    .unwrap_or_default()
+            });
+        let api_url = format!("{}/.api/", sourcegraph_url.trim_end_matches('/'));
+        if !connect_src.contains(&api_url) {
+            connect_src.push(api_url);
+        }
     }
 }
-
-// Helper function to handle the Result type
-pub fn sourcegraph_enabled(result: Result<bool, HttpResponse>) -> bool {
-    result.unwrap_or(false)
-} 

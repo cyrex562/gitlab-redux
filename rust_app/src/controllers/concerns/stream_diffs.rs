@@ -1,11 +1,18 @@
+// Ported from: orig_app/app/controllers/concerns/stream_diffs.rb
+// This file implements the StreamDiffs concern in Rust.
+//
+// Ported on: 2025-04-29
+//
+// See porting_log.txt for details.
+
+use crate::features::Feature;
+use crate::helpers::diff_helper::DiffHelper;
+use crate::models::rapid_diffs::{RapidDiffs, StreamingErrorComponent};
 use actix_web::{web, HttpRequest, HttpResponse, Result};
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use chrono::Utc;
-use crate::helpers::diff_helper::DiffHelper;
-use crate::models::rapid_diffs::{RapidDiffs, StreamingErrorComponent};
-use crate::features::Feature;
 
 // Define the User trait
 pub trait User: Send + Sync {
@@ -253,7 +260,10 @@ pub async fn diffs<T: StreamDiffs>(
     let result = stream_diff_files(&data, &options, params.diff_blobs.unwrap_or(false)).await;
 
     let streaming_time = streaming_start_time.elapsed().as_secs_f64();
-    let timing_header = format!("<server-timings streaming=\"{:.2}\"></server-timings>", streaming_time);
+    let timing_header = format!(
+        "<server-timings streaming=\"{:.2}\"></server-timings>",
+        streaming_time
+    );
 
     match result {
         Ok(content) => response
