@@ -1,136 +1,73 @@
-use axum::{
-    extract::ws::{Message, WebSocket},
-    http::Request,
-};
-use futures_util::{SinkExt, StreamExt};
-use serde_json::json;
+use actix::Addr;
+use actix_web_actors::ws;
+use bytes::Bytes;
+use serde_json::Value;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tokio::time::{interval, Duration};
-
-use crate::models::User;
-use crate::services::auth::AuthService;
 
 use super::connection::Connection;
-use super::logging::Logging;
 
+type ConnectionAddr = Addr<Connection>;
+
+#[derive(Debug)]
 pub struct Channel {
-    pub connection: Arc<RwLock<Connection>>,
-    pub params: serde_json::Value,
-    pub subscription_rejected: bool,
-    pub subscription_confirmed: bool,
+    pub params: Value,
+    pub connection: Option<Arc<RwLock<ConnectionAddr>>>,
 }
 
 impl Channel {
-    pub fn new(connection: Arc<RwLock<Connection>>, params: serde_json::Value) -> Self {
+    pub fn new(params: Value) -> Self {
         Self {
-            connection,
             params,
-            subscription_rejected: false,
-            subscription_confirmed: false,
+            connection: None,
         }
     }
 
-    pub async fn subscribe(&mut self) -> Result<(), String> {
-        // Validate token scope before subscribing
-        self.validate_token_scope().await?;
-
-        // Set up periodic validation
-        self.setup_periodic_validation();
-
-        self.subscription_confirmed = true;
-        Ok(())
+    pub async fn subscribe(&mut self, addr: ConnectionAddr) {
+        self.connection = Some(Arc::new(RwLock::new(addr)));
     }
 
-    pub async fn validate_token_scope(&self) -> Result<(), String> {
-        // TODO: Implement token validation with proper scopes
-        let scopes = self.authorization_scopes();
-
-        // Validate token with scopes
-        let connection = self.connection.read().await;
-        if let Some(auth_service) = &connection.auth_service {
-            // Validate token with scopes
-            // auth_service.validate_token(scopes).await?;
-        }
-
-        Ok(())
+    pub async fn unsubscribe(&mut self) {
+        self.connection = None;
     }
 
-    fn setup_periodic_validation(&self) {
-        let connection = Arc::clone(&self.connection);
-        let params = self.params.clone();
+    pub async fn broadcast(&self, event: &str, data: Value) -> Result<(), String> {
+        if let Some(connection) = &self.connection {
+            let payload = self.notification_payload(event);
+            let text = serde_json::to_string(&payload).unwrap();
+            let msg = ws::Message::Text(text.into());
 
-        tokio::spawn(async move {
-            let mut interval = interval(Duration::from_secs(600)); // 10 minutes
-
-            loop {
-                interval.tick().await;
-
-                // Validate token scope
-                let mut conn = connection.write().await;
-                // TODO: Implement periodic validation
-            }
-        });
-    }
-
-    pub fn authorization_scopes(&self) -> Vec<String> {
-        vec!["api".to_string(), "read_api".to_string()]
-    }
-
-    pub fn client_subscribed(&self) -> bool {
-        !self.subscription_rejected && self.subscription_confirmed
-    }
-
-    pub async fn handle_authentication_error(&mut self) {
-        if self.client_subscribed() {
-            self.unsubscribe_from_channel().await;
+            let conn = connection.read().await;
+            conn.do_send(msg).map_err(|e| e.to_string())?;
+            Ok(())
         } else {
-            self.reject();
+            Err("No active connection".to_string())
         }
     }
 
-    pub async fn unsubscribe_from_channel(&mut self) {
-        // TODO: Implement unsubscribe logic
+    pub fn notification_payload(&self, _event: &str) -> Value {
+        // TODO: Implement actual payload construction
+        Value::Null
     }
 
-    pub fn reject(&mut self) {
-        self.subscription_rejected = true;
-    }
-
-    pub fn notification_payload(&self, event: &str) -> serde_json::Value {
-        let mut payload = json!({});
-
-        if let serde_json::Value::Object(ref mut map) = payload {
-            // Add params except channel
-            if let Some(params) = self.params.as_object() {
-                for (key, value) in params {
-                    if key != "channel" {
-                        map.insert(key.clone(), value.clone());
-                    }
-                }
-            }
+    pub async fn reject(&mut self) {
+        if let Some(connection) = &self.connection {
+            let conn = connection.read().await;
+            let _ = conn.do_send(ws::Message::Close(None));
         }
-
-        payload
+        self.unsubscribe().await;
     }
 }
 
-impl Logging for Channel {
-    fn notification_payload(&self, event: &str) -> serde_json::Value {
-        self.notification_payload(event)
-    }
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    fn get_request(&self) -> &Request<()> {
-        // This is a bit tricky in Rust - we need to access the connection's request
-        // For now, we'll return a dummy request
-        // TODO: Implement proper request access
-        &Request::new(())
-    }
-
-    fn get_current_user(&self) -> Option<&User> {
-        // This is also tricky in Rust - we need to access the connection's current_user
-        // For now, we'll return None
-        // TODO: Implement proper user access
-        None
+    #[test]
+    fn test_new_channel() {
+        let params = serde_json::json!({});
+        let channel = Channel::new(params.clone());
+        assert_eq!(channel.params, params);
+        assert!(channel.connection.is_none());
     }
 }

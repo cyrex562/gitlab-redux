@@ -1,74 +1,106 @@
-use axum::{
-    extract::ws::{Message, WebSocket, WebSocketUpgrade},
-    http::Request,
+use actix::{Actor, Handler, StreamHandler};
+use actix_web::{
+    web,
+    HttpRequest,
+    HttpResponse,
+    Error,
+    error::ErrorUnauthorized,
 };
-use futures_util::{SinkExt, StreamExt};
-use serde_json::json;
+use actix_web_actors::ws;
+use serde_json::Value;
 use std::sync::Arc;
-use tokio::sync::RwLock;
-use tower_http::trace::TraceLayer;
+use crate::models::user::User;
+use super::logging::{Logger, Logging};
+use super::channel::Channel;
 
-use crate::models::User;
-use crate::services::auth::AuthService;
-
-use super::logging::Logging;
+#[derive(Debug)]
+pub struct WsMessage(pub String);
 
 pub struct Connection {
-    pub current_user: Option<Arc<User>>,
-    pub request: Request<()>,
-    pub auth_service: Arc<AuthService>,
+    request: HttpRequest,
+    channel: Channel,
+    logger: Arc<Logger>,
+}
+
+impl Actor for Connection {
+    type Context = ws::WebsocketContext<Self>;
+}
+
+impl Handler<ws::Message> for Connection {
+    type Result = ();
+
+    fn handle(&mut self, msg: ws::Message, ctx: &mut Self::Context) {
+        match msg {
+            ws::Message::Text(text) => ctx.text(text),
+            ws::Message::Close(reason) => {
+                self.logger.log_disconnect();
+                ctx.close(reason);
+                ctx.stop();
+            }
+            _ => (),
+        }
+    }
+}
+
+impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for Connection {
+    fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
+        match msg {
+            Ok(ws::Message::Text(text)) => {
+                if let Ok(value) = serde_json::from_str(&text) {
+                    self.logger.log_event("message", &value);
+                    ctx.text(text);
+                }
+            }
+            Ok(ws::Message::Close(reason)) => {
+                self.logger.log_disconnect();
+                ctx.close(reason);
+                ctx.stop();
+            }
+            _ => {}
+        }
+    }
 }
 
 impl Connection {
-    pub fn new(request: Request<()>, auth_service: Arc<AuthService>) -> Self {
+    pub fn new(request: HttpRequest, user: Option<Arc<User>>, params: Value) -> Self {
+        let logger = Arc::new(Logger::new(request.clone(), user));
+        let channel = Channel::new(params);
+
         Self {
-            current_user: None,
             request,
-            auth_service,
+            channel,
+            logger,
         }
     }
 
-    pub async fn connect(&mut self) -> Result<(), String> {
-        // Find user from bearer token or session
-        self.current_user = self
-            .find_user_from_bearer_token()
-            .await
-            .or_else(|| self.find_user_from_session_store());
-
-        if self.current_user.is_none() {
-            return Err("Unauthorized connection".to_string());
+    pub async fn start(mut self) -> Result<HttpResponse, Error> {
+        // Authenticate connection request
+        if !self.authenticate().await {
+            return Err(ErrorUnauthorized("Unauthorized"));
         }
 
-        Ok(())
+        self.logger.log_connect();
+
+        // Start WebSocket connection
+        ws::start(self, &self.request)
     }
 
-    async fn find_user_from_bearer_token(&self) -> Option<Arc<User>> {
-        // TODO: Implement token validation and user lookup
-        None
-    }
-
-    fn find_user_from_session_store(&self) -> Option<Arc<User>> {
-        // TODO: Implement session lookup
-        None
-    }
-
-    pub fn notification_payload(&self, _: &str) -> serde_json::Value {
-        json!({
-            "params": self.request.uri().query().unwrap_or("")
-        })
+    async fn authenticate(&self) -> bool {
+        // TODO: Implement actual authentication
+        true
     }
 }
 
-impl Logging for Connection {
-    fn notification_payload(&self, event: &str) -> serde_json::Value {
-        self.notification_payload(event)
-    }
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use actix_web::test::TestRequest;
 
-    fn get_request(&self) -> &Request<()> {
-        &self.request
-    }
-
-    fn get_current_user(&self) -> Option<&User> {
-        self.current_user.as_deref()
+    #[actix_web::test]
+    async fn test_connection_new() {
+        let req = TestRequest::default().to_http_request();
+        let params = serde_json::json!({});
+        let conn = Connection::new(req, None, params);
+        assert!(conn.authenticate().await);
     }
 }

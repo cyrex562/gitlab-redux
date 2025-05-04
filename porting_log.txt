@@ -84,3 +84,14 @@
 2025-05-01: Ported orig_app/app/controllers/oauth/token_info_controller.rb to rust_app/src/controllers/oauth/token_info_controller.rs
 2025-05-01: Ported orig_app/app/controllers/oauth/tokens_controller.rb to rust_app/src/controllers/oauth/tokens_controller.rs
 2025-05-01 18:02:08 | orig_app/app/controllers/organizations/application_controller.rb -> rust_app/src/controllers/organizations/application_controller.rs
+2025-05-04: Ported OAuth authorized applications controller
+- orig_app/app/controllers/oauth/authorized_applications_controller.rb → rust_app/src/controllers/oauth/authorized_applications_controller.rs 
+- Implemented minimal controller that mirrors Ruby functionality:
+  - index action returns 404 since it's handled client-side
+  - destroy action for revoking application tokens with redirection
+- TODO: Implement actual token revocation logic once models are available
+2025-05-04 - Ported orig_app/app/controllers/organizations/groups_controller.rb to rust_app/src/controllers/organizations/groups_controller.rs
+- Implemented GroupsController with feature_category: cell and low urgency for create/new/destroy actions
+- Maintained all original functionality including group creation, editing, and deletion
+- Added proper error handling and authorization checks
+- Integrated with Rust services (CreateService, DestroyService) and serializers

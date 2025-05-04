@@ -6,7 +6,17 @@ use crate::auth::current_user_mode::CurrentUserMode;
 use crate::models::user::User;
 
 pub trait InitializesCurrentUserMode {
-    fn current_user_mode(&self) -> Arc<CurrentUserMode>;
+    fn initialize_current_user_mode(&self, user: Option<Arc<User>>);
+}
+
+pub struct UserMode {
+    pub admin_mode: bool,
+}
+
+impl UserMode {
+    pub fn new(admin_mode: bool) -> Self {
+        Self { admin_mode }
+    }
 }
 
 pub struct InitializesCurrentUserModeImpl {

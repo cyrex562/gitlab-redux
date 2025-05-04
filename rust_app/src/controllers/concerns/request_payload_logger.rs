@@ -10,12 +10,13 @@ use crate::{
         correlation::CorrelationId,
     },
 };
-use actix_web::{dev::ServiceRequest, web::Data};
+use actix_web::{dev::ServiceRequest, web::Data, HttpRequest, HttpResponse};
 use serde_json::Value;
 use std::collections::HashMap;
 
 pub trait RequestPayloadLogger {
     fn append_info_to_payload(&self, payload: &mut HashMap<String, Value>, req: &ServiceRequest);
+    fn log_request_payload(&self, req: &HttpRequest, response: &HttpResponse);
 }
 
 pub struct RequestPayloadLoggerImpl {
@@ -75,5 +76,9 @@ impl RequestPayloadLogger for RequestPayloadLoggerImpl {
 
         // Add Cloudflare headers
         CloudflareHelper::store_headers(payload, req);
+    }
+
+    fn log_request_payload(&self, _req: &HttpRequest, _response: &HttpResponse) {
+        // TODO: Implement actual payload logging
     }
 }

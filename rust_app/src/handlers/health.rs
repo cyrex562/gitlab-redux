@@ -1,9 +1,9 @@
-use axum::{http::StatusCode, response::IntoResponse, Json};
+use actix_web::{HttpResponse, Responder};
 use serde_json::json;
 
-pub async fn check() -> impl IntoResponse {
-    Json(json!({
+pub async fn health_check() -> impl Responder {
+    HttpResponse::Ok().json(json!({
         "status": "ok",
-        "timestamp": chrono::Utc::now().to_rfc3339()
+        "version": env!("CARGO_PKG_VERSION")
     }))
 }

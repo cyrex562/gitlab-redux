@@ -1,93 +1,85 @@
 // Ported from: orig_app/app/controllers/organizations/application_controller.rb
-// Ported on: 2025-05-01
-// This file implements the Organizations::ApplicationController from the Ruby codebase.
-//
-// See porting_log.txt for details.
+// Ported on: 2025-05-04
 
-use actix_web::{web, HttpRequest, HttpResponse, Responder};
+use actix_web::{web, HttpResponse, Responder};
+use serde::{Deserialize, Serialize};
 
-/// Checks if a feature flag is enabled for a user (placeholder)
-fn feature_enabled(flag: &str, _user_id: Option<i64>) -> bool {
-    // TODO: Integrate with real feature flag system
-    match flag {
-        "ui_for_organizations" => true,
-        "allow_organization_creation" => false,
-        _ => false,
+/// Controller for organization-related actions
+pub struct OrganizationsApplicationController {
+    current_user_id: Option<i64>,
+}
+
+impl OrganizationsApplicationController {
+    pub fn new() -> Self {
+        Self {
+            current_user_id: None,
+        }
     }
-}
 
-/// Checks if a user can perform an action (placeholder)
-fn can(_user_id: Option<i64>, _action: &str, _subject: Option<&str>) -> bool {
-    // TODO: Integrate with real permission system
-    true
-}
-
-/// Simulates access denied response
-fn access_denied() -> HttpResponse {
-    HttpResponse::Forbidden().body("Access denied")
-}
-
-/// Loads the organization from the request (placeholder)
-fn load_organization(req: &HttpRequest) -> Option<String> {
-    req.match_info()
-        .get("organization_path")
-        .map(|s| s.to_string())
-}
-
-/// Example handler that checks feature flag and loads organization
-pub async fn organization_controller(req: HttpRequest) -> impl Responder {
-    let user_id = None; // TODO: Extract from session/auth
-    if !feature_enabled("ui_for_organizations", user_id) {
-        return access_denied();
+    pub fn check_feature_flag(&self) -> Result<(), HttpResponse> {
+        if !self.feature_enabled("ui_for_organizations") {
+            return Err(self.access_denied());
+        }
+        Ok(())
     }
-    let organization = load_organization(&req);
-    // ... use organization as needed ...
-    HttpResponse::Ok().body(format!("Organization: {:?}", organization))
-}
 
-// Authorization helpers (placeholders)
-pub fn authorize_create_organization(user_id: Option<i64>) -> HttpResponse {
-    if !feature_enabled("allow_organization_creation", user_id)
-        || !can(user_id, "create_organization", None)
-    {
-        return access_denied();
+    pub fn organization(&self, organization_path: Option<String>) -> Option<String> {
+        organization_path.and_then(|path| {
+            // TODO: Implement actual organization lookup using Organizations::Organization::find_by_path
+            Some(path)
+        })
     }
-    HttpResponse::Ok().finish()
-}
 
-pub fn authorize_read_organization(
-    user_id: Option<i64>,
-    organization: Option<&str>,
-) -> HttpResponse {
-    if !can(user_id, "read_organization", organization) {
-        return access_denied();
+    fn feature_enabled(&self, flag: &str) -> bool {
+        // TODO: Implement actual feature flag check
+        match flag {
+            "ui_for_organizations" => true,
+            "allow_organization_creation" => true,
+            _ => false,
+        }
     }
-    HttpResponse::Ok().finish()
-}
 
-pub fn authorize_read_organization_user(
-    user_id: Option<i64>,
-    organization: Option<&str>,
-) -> HttpResponse {
-    if !can(user_id, "read_organization_user", organization) {
-        return access_denied();
+    fn can(&self, action: &str, subject: Option<&str>) -> bool {
+        // TODO: Implement actual authorization check
+        true
     }
-    HttpResponse::Ok().finish()
-}
 
-pub fn authorize_admin_organization(
-    user_id: Option<i64>,
-    organization: Option<&str>,
-) -> HttpResponse {
-    if !can(user_id, "admin_organization", organization) {
-        return access_denied();
+    pub fn authorize_create_organization(&self) -> Result<(), HttpResponse> {
+        if !self.feature_enabled("allow_organization_creation") || !self.can("create_organization", None) {
+            return Err(self.access_denied());
+        }
+        Ok(())
     }
-    HttpResponse::Ok().finish()
-}
 
-pub fn authorize_create_group(user_id: Option<i64>, organization: Option<&str>) -> HttpResponse {
-    if !can(user_id, "create_group", organization) {
-        return access_denied();
+    pub fn authorize_read_organization(&self, organization: Option<&str>) -> Result<(), HttpResponse> {
+        if !self.can("read_organization", organization) {
+            return Err(self.access_denied());
+        }
+        Ok(())
     }
-    HttpResponse::Ok().finish()
+
+    pub fn authorize_read_organization_user(&self, organization: Option<&str>) -> Result<(), HttpResponse> {
+        if !self.can("read_organization_user", organization) {
+            return Err(self.access_denied());
+        }
+        Ok(())
+    }
+
+    pub fn authorize_admin_organization(&self, organization: Option<&str>) -> Result<(), HttpResponse> {
+        if !self.can("admin_organization", organization) {
+            return Err(self.access_denied());
+        }
+        Ok(())
+    }
+
+    pub fn authorize_create_group(&self, organization: Option<&str>) -> Result<(), HttpResponse> {
+        if !self.can("create_group", organization) {
+            return Err(self.access_denied());
+        }
+        Ok(())
+    }
+
+    fn access_denied(&self) -> HttpResponse {
+        HttpResponse::Forbidden().finish()
+    }
 }

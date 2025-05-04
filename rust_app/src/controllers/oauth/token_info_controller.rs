@@ -1,60 +1,66 @@
-// Ported from: orig_app/app/controllers/oauth/token_info_controller.rb
-// This controller provides token info for OAuth tokens, similar to the Ruby Doorkeeper::TokenInfoController.
+// Ported from: /home/azrael/Projects/gitlab-redux/orig_app/app/controllers/oauth/token_info_controller.rb
+// This controller provides token info for OAuth tokens, extending Doorkeeper's TokenInfoController.
 
-use actix_web::{get, web, HttpRequest, HttpResponse, Responder};
+use crate::auth::doorkeeper::AccessToken;
+use crate::auth::EnforcesTwoFactorAuthentication;
+use actix_web::{get, HttpRequest, HttpResponse, Responder};
 use serde_json::json;
 
-// Dummy traits and types for illustration; replace with actual implementations.
-pub trait EnforcesTwoFactorAuthentication {}
-
 #[derive(Debug, Clone)]
-pub struct OAuthToken {
-    pub scope: Vec<String>,
-    pub expires_in: Option<i64>,
-    pub accessible: bool,
-    // ... other fields ...
-}
+pub struct TokenInfoController;
 
-impl OAuthToken {
-    pub fn as_json(&self) -> serde_json::Value {
-        json!({
-            "scope": self.scope,
-            "expires_in": self.expires_in,
-            // ... other fields ...
-        })
+impl TokenInfoController {
+    fn get_doorkeeper_token(req: &HttpRequest) -> Option<AccessToken> {
+        // TODO: Extract token from Authorization header and validate it
+        match req.headers().get("Authorization") {
+            Some(auth_header) => {
+                if let Ok(auth_str) = auth_header.to_str() {
+                    if auth_str.starts_with("Bearer ") {
+                        let token = auth_str[7..].to_string();
+                        AccessToken::find_by_token(&token)
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            }
+            None => None,
+        }
+    }
+
+    fn invalid_token_response() -> HttpResponse {
+        let error = json!({
+            "error": "invalid_token",
+            "error_description": "The access token is invalid"
+        });
+        HttpResponse::Unauthorized()
+            .append_header(("Cache-Control", "no-store"))
+            .append_header(("Pragma", "no-cache"))
+            .json(error)
     }
 }
 
-fn get_doorkeeper_token(_req: &HttpRequest) -> Option<OAuthToken> {
-    // TODO: Implement token extraction and validation
-    None
-}
-
+/// GET /oauth/token/info
+/// Returns information about the current token
 #[get("/oauth/token/info")]
 pub async fn show(req: HttpRequest) -> impl Responder {
-    if let Some(token) = get_doorkeeper_token(&req) {
-        if token.accessible {
+    if let Some(token) = TokenInfoController::get_doorkeeper_token(&req) {
+        if token.accessible() {
             let mut token_json = token.as_json();
-            // maintain backwards compatibility
-            if let Some(scope) = token_json.get("scope").cloned() {
-                token_json["scopes"] = scope;
-            }
-            if let Some(expires_in) = token_json.get("expires_in").cloned() {
-                token_json["expires_in_seconds"] = expires_in;
-            }
-            HttpResponse::Ok().json(token_json)
+
+            // Maintain backwards compatibility
+            token_json["scopes"] = token_json["scope"].clone();
+            token_json["expires_in_seconds"] = token_json["expires_in"].clone();
+
+            HttpResponse::Ok()
+                .append_header(("Cache-Control", "no-store"))
+                .append_header(("Pragma", "no-cache"))
+                .json(token_json)
         } else {
-            invalid_token_response()
+            TokenInfoController::invalid_token_response()
         }
     } else {
-        invalid_token_response()
+        TokenInfoController::invalid_token_response()
     }
-}
-
-fn invalid_token_response() -> HttpResponse {
-    // Simulate Doorkeeper::OAuth::InvalidTokenResponse
-    let error_body = json!({
-        "error": "invalid_token"
-    });
-    HttpResponse::Unauthorized().json(error_body)
 }

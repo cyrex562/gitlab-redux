@@ -1,6 +1,47 @@
-
 - orig_app/app/controllers/jira_connect/app_descriptor_controller.rb → rust_app/src/controllers/jira_connect_app_descriptor.rs
   - Ported the Jira Connect App Descriptor controller to Rust using Axum/Actix idioms.
   - The Rust handler returns the JSON descriptor at /jira_connect/app_descriptor.json.
   - Structs are defined for the descriptor structure, and static values are used for constants and URLs.
   - Some dynamic values (e.g., logo URL, app key) are currently hardcoded for simplicity; adapt as needed for full dynamic support.
+
+2025-05-03: Ported OAuth applications controller from orig_app/app/controllers/oauth/applications_controller.rb to:
+- rust_app/src/controllers/oauth/applications_controller.rs
+- rust_app/src/services/applications/create_service.rs
+- rust_app/src/models/oauth/application.rs
+
+Changes include:
+- Implemented OAuth application creation workflow
+- Added validation for scopes
+- Preserved original functionality while adapting to Rust idioms
+
+2025-05-04 - Ported oauth/device_authorizations_controller.rb to rust_app/src/controllers/oauth/device_authorizations_controller.rs
+- Implemented index and confirm actions
+- Set up request/response types
+- Added content type negotiation
+- TODO: Implement database interactions and auth checks
+
+2025-05-04 - Enhanced oauth/device_authorizations_controller.rb port in rust_app/src/controllers/oauth/device_authorizations_controller.rs
+- Added proper error handling with DeviceAuthError enum and ResponseError implementation
+- Added structured request/response types for type safety
+- Integrated with main application routes under /oauth/device
+- Added content negotiation for HTML/JSON responses
+- Added placeholder for database interactions with proper error handling
+- TODO: Implement database model, authentication, template rendering, and tests
+
+[2025-05-04] Ported orig_app/app/controllers/oauth/token_info_controller.rb to rust_app/src/controllers/oauth/token_info_controller.rs
+- Implemented OAuth token info endpoint with backward compatibility for scopes and expires_in fields
+- Added AccessToken implementation in auth/doorkeeper.rs module
+
+[2025-05-04] Ported orig_app/app/controllers/oauth/tokens_controller.rb to rust_app/src/controllers/oauth/tokens_controller.rs
+- Implemented client validation for OAuth token requests
+- Added proper RFC 6749-compliant error responses
+- Maintained compatibility with Doorkeeper token controller interface
+- Added route configuration
+- TODO: Implement full token creation logic once Doorkeeper server implementation is complete
+
+[2025-05-04] Ported orig_app/app/controllers/organizations/application_controller.rb to rust_app/src/controllers/organizations/application_controller.rs
+- Implemented organization controller base logic with feature flag checks
+- Added authorization methods for organization-related actions
+- Added organization lookup functionality (placeholder)
+- Maintained layout configuration from Ruby version
+- TODO: Implement actual feature flag checks and authorization logic

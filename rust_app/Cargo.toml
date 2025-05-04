@@ -5,10 +5,13 @@ edition = "2021"
 
 [dependencies]
 # Web Framework
-axum = { version = "0.7", features = ["macros"] }
-tower = "0.4"
-tower-http = { version = "0.5", features = ["trace", "cors", "timeout", "fs"] }
+actix = "0.13"
+actix-web = "4.0"
+actix-web-actors = "4.2"
+tower = { version = "0.4", features = ["full"] }
+tower-http = { version = "0.4", features = ["fs", "trace", "cors"] }
 hyper = { version = "1.0", features = ["server"] }
+tower-cookies = "0.10"
 
 # WebSocket
 tokio-tungstenite = "0.21"
@@ -21,38 +24,91 @@ async-graphql-warp = "5.0"
 async-graphql-actix-web = "5.0"
 async-graphql-parser = "5.0"
 
-# Database
-sqlx = { version = "0.7", features = [
-    "runtime-tokio-rustls",
-    "postgres",
-    "uuid",
-    "chrono",
-    "json",
-] }
+# Database and Storage
+sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres"] }
 redis = { version = "0.23", features = ["tokio-comp", "connection-manager"] }
 
-# Templates
-tera = "1.19"
+# Authentication & Authorization
+jsonwebtoken = "9.3"
+openssl = "0.10"
+base64 = "0.21"
+oauth2 = { version = "4.4", features = ["reqwest"] }
+openid = "0.12"
+recaptcha = "0.5"
+bcrypt = "0.15"
+hex = "0.4"
+subtle = "2.5"
 
-# Utilities
-tokio = { version = "1.36", features = ["full"] }
+# Metrics & Monitoring
+prometheus = { version = "0.13", features = ["process"] }
+metrics = "0.21"
+metrics-exporter-prometheus = "0.12"
+
+# Templates & Rendering
+tera = "1.0"
+handlebars = "4.5"
+markdown = "1.0"
+comrak = "0.19"
+
+# Git Integration
+git2 = "0.18"
+gix = "0.55"
+
+# Core Utilities
+tokio = { version = "1.0", features = ["full"] }
+tokio-util = { version = "0.7", features = ["io"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+bytes = "1.5"
+futures = "0.3"
+async-trait = "0.1"
+
+# Logging & Tracing
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-dotenvy = "0.15"
-thiserror = "1.0"
-anyhow = "1.0"
-uuid = { version = "1.7", features = ["v4", "serde"] }
-chrono = { version = "0.4", features = ["serde"] }
-bcrypt = "0.15"
-jsonwebtoken = "9.2"
-cookie = "0.18"
-rand = "0.8"
-async-trait = "0.1"
-futures = "0.3"
+
+# Security & Crypto
 sha2 = "0.10"
 md5 = "0.7"
+hmac = "0.12"
+
+# Config & Environment
+dotenvy = "0.15"
+config = { version = "0.13", features = ["yaml"] }
+
+# Error Handling
+thiserror = "1.0"
+anyhow = "1.0"
+
+# IDs & Time
+uuid = { version = "1.0", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+time = { version = "0.3", features = ["serde"] }
+
+# Web & HTTP
+url = "2.5"
+reqwest = { version = "0.11", features = ["json"] }
+cookie = "0.18"
+multer = "2.1"
+
+# File Operations
+tempfile = "3.10"
+zip = "0.6"
+
+# Misc
+lazy_static = "1.4"
+regex = "1.10"
+rand = "0.8"
+octocrab = "0.32"   # GitHub API client
+ldap3 = "0.11"
+
+# Session Management
+actix-session = { version = "0.7", features = ["cookie-session"] }
 
 [dev-dependencies]
+dotenvy = "0.15"
+pretty_assertions = "1.4"
+cargo-watch = "8.4"
 tokio-test = "0.4"
+hyper = { version = "0.14", features = ["full"] }
+tower-test = "0.4"

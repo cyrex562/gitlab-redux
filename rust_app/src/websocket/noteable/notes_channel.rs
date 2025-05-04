@@ -1,67 +1,55 @@
+use actix::Addr;
+use actix_web_actors::ws;
+use serde_json::Value;
 use serde_json::json;
-use std::sync::Arc;
-use tokio::sync::RwLock;
-
-use crate::models::{Noteable, Project};
-use crate::services::notes::NotesFinder;
-use crate::websocket::Channel;
+use crate::models::{Noteable, User};
+use super::super::channel::Channel;
+use super::super::connection::Connection;
 
 pub struct NotesChannel {
+    pub noteable: Box<dyn Noteable>,
     pub channel: Channel,
-    pub noteable: Option<Arc<Noteable>>,
 }
 
 impl NotesChannel {
-    pub fn new(channel: Channel) -> Self {
+    pub fn new(noteable: Box<dyn Noteable>) -> Self {
+        let params = serde_json::json!({
+            "noteable_id": noteable.get_id(),
+            "noteable_type": noteable.get_type(),
+        });
+
         Self {
-            channel,
-            noteable: None,
+            noteable,
+            channel: Channel::new(params),
         }
     }
 
-    pub async fn subscribe(&mut self) -> Result<(), String> {
-        // First call the parent subscribe method to validate token scope
-        self.channel.subscribe().await?;
-
-        // Get parameters from the channel
-        let params = &self.channel.params;
-
-        // Find project if project_id is present
-        let project = if let Some(project_id) = params.get("project_id").and_then(|id| id.as_str())
-        {
-            // TODO: Implement project lookup
-            None
-        } else {
-            None
-        };
-
-        // Find noteable using NotesFinder
-        let group_id = params.get("group_id").and_then(|id| id.as_str());
-        let noteable_type = params.get("noteable_type").and_then(|t| t.as_str());
-        let noteable_id = params.get("noteable_id").and_then(|id| id.as_str());
-
-        // Get current user from connection
-        let connection = self.channel.connection.read().await;
-        let current_user = connection.current_user.clone();
-
-        if let Some(user) = current_user {
-            let notes_finder =
-                NotesFinder::new(user, project, group_id, noteable_type, noteable_id);
-
-            self.noteable = notes_finder.find_target().await;
-
-            if self.noteable.is_none() {
-                self.channel.reject();
-                return Err("Noteable not found".to_string());
-            }
-
-            // Stream for the noteable
-            // TODO: Implement streaming
-        } else {
-            self.channel.reject();
-            return Err("User not found".to_string());
+    pub async fn connect(&mut self, addr: Addr<Connection>) -> Result<(), String> {
+        // Validate the connection
+        if !self.can_subscribe().await {
+            self.channel.reject().await;
+            return Err("Subscription not allowed".to_string());
         }
 
+        // Subscribe to updates
+        self.channel.subscribe(addr).await;
         Ok(())
+    }
+
+    async fn can_subscribe(&self) -> bool {
+        // TODO: Implement proper subscription validation
+        true
+    }
+
+    pub async fn note_created(&mut self, data: Value) -> Result<(), String> {
+        self.channel.broadcast("note_created", data).await
+    }
+
+    pub async fn note_updated(&mut self, data: Value) -> Result<(), String> {
+        self.channel.broadcast("note_updated", data).await
+    }
+
+    pub async fn note_deleted(&mut self, data: Value) -> Result<(), String> {
+        self.channel.broadcast("note_deleted", data).await
     }
 }
