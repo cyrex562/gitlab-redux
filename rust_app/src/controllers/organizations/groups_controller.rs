@@ -6,11 +6,11 @@ use actix_web::{web, HttpResponse, Responder};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-use crate::controllers::organizations::application_controller::OrganizationsApplicationController;
 use crate::controllers::concerns::groups::GroupParams;
-use crate::services::groups::{CreateService, DestroyService};
+use crate::controllers::organizations::application_controller::OrganizationsApplicationController;
 use crate::models::group::Group;
 use crate::serializers::group_serializer::GroupSerializer;
+use crate::services::groups::{CreateService, DestroyService};
 
 #[derive(Debug, Deserialize)]
 pub struct PathParams {
@@ -20,12 +20,6 @@ pub struct PathParams {
 /// Controller for managing groups within organizations
 pub struct OrganizationsGroupsController {
     base: OrganizationsApplicationController,
-}
-
-#[derive(Debug, Serialize)]
-pub struct GroupResponse {
-    group: Group,
-    message: Option<String>,
 }
 
 impl OrganizationsGroupsController {
@@ -42,11 +36,11 @@ impl OrganizationsGroupsController {
     }
 
     /// GET /organizations/:organization_id/groups/:id/edit
-    pub async fn edit(&self, params: web::Path<PathParams>) -> impl Responder {
+    pub async fn edit(&self) -> impl Responder {
         if let Err(e) = self.base.authorize_read_organization(None) {
             return e;
         }
-        if let Err(e) = self.authorize_view_edit_page(&params.id).await {
+        if let Err(e) = self.authorize_view_edit_page() {
             return e;
         }
         HttpResponse::Ok().finish()
@@ -55,43 +49,40 @@ impl OrganizationsGroupsController {
     /// POST /organizations/:organization_id/groups
     pub async fn create(&self, params: web::Json<GroupParams>) -> impl Responder {
         let response = self.create_group(params.into_inner()).await;
-        
+
         match response {
             Ok(group) => {
                 let serializer = GroupSerializer::new(self.base.current_user_id);
                 let json = serializer.represent(&group);
                 HttpResponse::Ok().json(json)
             }
-            Err(errors) => {
-                HttpResponse::UnprocessableEntity().json(json!({
-                    "message": errors
-                }))
-            }
+            Err(errors) => HttpResponse::UnprocessableEntity().json(json!({
+                "message": errors
+            })),
         }
     }
 
     /// DELETE /organizations/:organization_id/groups/:id
-    pub async fn destroy(&self, params: web::Path<PathParams>) -> impl Responder {
-        if let Err(e) = self.authorize_remove_group(&params.id).await {
+    pub async fn destroy(&self, group_id: web::Path<String>) -> impl Responder {
+        if let Err(e) = self.authorize_remove_group() {
             return e;
         }
 
-        let group = match self.group(&params.id).await {
+        let group = match self.group(&group_id).await {
             Some(g) => g,
-            None => return HttpResponse::NotFound().finish()
+            None => return HttpResponse::NotFound().finish(),
         };
 
-        match DestroyService::new(group, self.base.current_user_id).async_execute().await {
-            Ok(_) => {
-                HttpResponse::Ok().json(json!({
-                    "message": format!("Group '{}' is being deleted.", group.full_name)
-                }))
-            }
-            Err(e) => {
-                HttpResponse::UnprocessableEntity().json(json!({
-                    "message": e.to_string()
-                }))
-            }
+        match DestroyService::new(group, self.base.current_user_id)
+            .async_execute()
+            .await
+        {
+            Ok(_) => HttpResponse::Ok().json(json!({
+                "message": format!("Group '{}' is being deleted.", group.full_name)
+            })),
+            Err(e) => HttpResponse::UnprocessableEntity().json(json!({
+                "message": e.to_string()
+            })),
         }
     }
 
@@ -103,18 +94,19 @@ impl OrganizationsGroupsController {
             .await
     }
 
-    async fn create_group(&self, mut params: GroupParams) -> Result<Group, String> {
-        if let Some(org) = self.base.organization(None) {
-            params.organization_id = Some(org.id);
-        }
+    async fn create_group(&self, params: GroupParams) -> Result<Group, String> {
+        let create_service_params = GroupParams {
+            organization_id: Some(self.base.organization(None)?.id),
+            ..params
+        };
 
-        CreateService::new(self.base.current_user_id, params)
+        CreateService::new(self.base.current_user_id, create_service_params)
             .execute()
             .await
     }
 
-    async fn authorize_view_edit_page(&self, id: &str) -> Result<(), HttpResponse> {
-        match self.group(id).await {
+    fn authorize_view_edit_page(&self) -> Result<(), HttpResponse> {
+        match self.group(params.id).await {
             None => return Err(HttpResponse::NotFound().finish()),
             Some(group) => {
                 if !self.base.can("view_edit_page", Some(&group.id.to_string())) {
@@ -125,8 +117,8 @@ impl OrganizationsGroupsController {
         Ok(())
     }
 
-    async fn authorize_remove_group(&self, id: &str) -> Result<(), HttpResponse> {
-        match self.group(id).await {
+    fn authorize_remove_group(&self) -> Result<(), HttpResponse> {
+        match self.group(params.id).await {
             None => return Err(HttpResponse::NotFound().finish()),
             Some(group) => {
                 if !self.base.can("remove_group", Some(&group.id.to_string())) {

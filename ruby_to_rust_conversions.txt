@@ -45,3 +45,14 @@ Changes include:
 - Added organization lookup functionality (placeholder)
 - Maintained layout configuration from Ruby version
 - TODO: Implement actual feature flag checks and authorization logic
+
+2025-05-05: Ported orig_app/app/controllers/organizations/organizations_controller.rb to rust_app/src/controllers/organizations/organizations_controller.rs
+- Implemented all major actions: index, new, show, activity, groups_and_projects, users
+- Preserved feature flag checks and authorization logic
+- Maintained activity event handling with pagination
+- TODO: Implement remaining service integrations (ProjectsFinder, GroupsFinder, EventsRenderService)
+
+2025-05-05: Ported orig_app/app/controllers/organizations/projects_controller.rb to rust_app/src/controllers/organizations/projects_controller.rs
+- Implemented ProjectsController with edit action
+- Added authorization check for project view/edit
+- Configured routes in main.rs

@@ -9,3 +9,6 @@ pub mod oauth {
     pub mod tokens_controller;
 }
 pub mod concerns;
+pub mod profiles {
+    pub mod accounts_controller;
+}

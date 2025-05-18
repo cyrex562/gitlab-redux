@@ -95,3 +95,22 @@
 - Maintained all original functionality including group creation, editing, and deletion
 - Added proper error handling and authorization checks
 - Integrated with Rust services (CreateService, DestroyService) and serializers
+2025-05-05: Ported orig_app/app/controllers/organizations/settings_controller.rb to rust_app/src/controllers/organizations/settings_controller.rs
+2025-05-05 11:23:55 | orig_app/app/controllers/profiles/accounts_controller.rb -> rust_app/src/controllers/profiles/accounts_controller.rs
+2025-05-05: Ported orig_app/app/controllers/profiles/application_controller.rb to rust_app/src/controllers/profiles/application_controller.rs
+2025-05-05: Ported orig_app/app/controllers/profiles/chat_names_controller.rb to rust_app/src/controllers/profiles/chat_names_controller.rs
+2025-05-05: Ported orig_app/app/controllers/profiles/comment_templates_controller.rb to rust_app/src/controllers/profiles/comment_templates_controller.rs
+2025-05-05, orig_app/app/controllers/profiles/emails_controller.rb, rust_app/src/controllers/profiles/emails_controller.rs
+2025-05-06 20:57:32 | orig_app/app/controllers/profiles/groups_controller.rb -> rust_app/src/controllers/profiles/groups_controller.rs
+2025-05-07 | orig_app/app/controllers/profiles/notifications_controller.rb -> rust_app/src/controllers/profiles/notifications_controller.rs
+2025-05-07 07:56:09 | orig_app/app/controllers/profiles/preferences_controller.rb -> rust_app/src/controllers/profiles/preferences_controller.rs
+2025-05-07: Ported orig_app/app/controllers/profiles/slacks_controller.rb to rust_app/src/controllers/profiles/slacks_controller.rs
+2025-05-07 08:01:53 | Ported orig_app/app/controllers/profiles/two_factor_auths_controller.rb -> rust_app/src/controllers/profiles/two_factor_auths_controller.rs
+2025-05-07: Ported orig_app/app/controllers/profiles/usage_quotas_controller.rb to rust_app/src/controllers/profiles/usage_quotas_controller.rs
+// Ported 2025-05-07: orig_app/app/controllers/projects/alerting/notifications_controller.rb -> rust_app/src/controllers/projects/alerting/notifications_controller.rs
+2025-05-07 08:07:38 | orig_app/app/controllers/projects/analytics/cycle_analytics/stages_controller.rb -> rust_app/src/handlers/stages_controller.rs
+2025-05-07: Ported orig_app/app/controllers/projects/analytics/cycle_analytics/summary_controller.rb to rust_app/src/handlers/summary_controller.rs
+2025-05-07: Ported orig_app/app/controllers/projects/analytics/cycle_analytics/value_streams_controller.rb to rust_app/src/controllers/projects/analytics/cycle_analytics/value_streams_controller.rs
+2025-05-07 | orig_app/app/controllers/projects/aws/base_controller.rb -> rust_app/src/controllers/projects/aws/base_controller.rs
+2025-05-07: Ported orig_app/app/controllers/projects/ci/prometheus_metrics/histograms_controller.rb to rust_app/src/controllers/projects/ci/prometheus_metrics/histograms_controller.rs
+2025-05-08: Ported orig_app/app/controllers/projects/ci/daily_build_group_report_results_controller.rb to rust_app/src/controllers/projects/ci/daily_build_group_report_results_controller.rs
